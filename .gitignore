@@ -1,0 +1,44 @@
+# --- Downloads and working data (large, regenerable, never commit) ---
+downloads/
+video/
+audio/
+recycle/
+*.part
+*.ytdl
+*.temp
+
+# --- User input / state ---
+# links.txt holds a personal queue; keep it local.
+links.txt
+config.json
+downy.log
+*.log
+.downy-archive.txt
+
+# --- Secrets: never commit, under any name ---
+.env
+.env.*
+secrets*
+*.key
+*.pem
+cookies.txt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+pip-wheel-metadata/
+
+# --- Test scratch directories ---
+_test-*/
+downy-test-*/
+tmp*/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
