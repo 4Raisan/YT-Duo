@@ -36,29 +36,27 @@ python -m downy https://youtu.be/ID :: one URL, no queue file
 python -m downy --gui
 ```
 
-One action up front: paste a link, press Enter. Everything else appears only
-when it is useful, so the window starts at roughly 680×210 and grows with the
-content.
+A modern dark UI (with a light mode) drawn entirely on Canvas. tkinter's
+native ttk widgets delegate to Windows Visual Styles and ignore colour, so
+every control here -- buttons, quality chips, progress bar -- is custom-drawn
+to get real colour, rounded corners and animated transitions.
 
 | Idle | Downloading |
 |---|---|
 | ![idle](gui-idle.png) | ![running](gui-running.png) |
 
-Options (output folder, cookies, skip-downloaded, queue management) live behind
-the **⚙ Options** button:
+![light theme](gui-light.png)
 
-![options](gui-expanded.png)
-
-- **Quality** caps the resolution (Best / 2160p / 1440p / 1080p / 720p /
-  480p / 360p). It is a ceiling, not a demand: asking for 720p on a 480p
-  video downloads 480p rather than failing.
-- **Format** is a friendly wrapper over the three modes, with a one-line
-  explanation for the current choice.
-- **Cancel** interrupts the current download immediately -- not merely the
-  next queue item -- and keeps the partial file so a rerun resumes.
-- The activity log grows with its content (4–12 lines) rather than reserving
-  a tall empty box, and the progress bar is hidden when nothing is running.
-- Settings persist to `config.json` and are shared with the CLI.
+- **Quality** is a row of chips (Best / 2160p … 360p). It is a ceiling, not a
+  demand: asking for 720p on a 480p video downloads 480p rather than failing.
+- **Format** is plain language: Best quality / Smaller file / Most compatible.
+- **Options** (output folder, cookies, skip-downloaded, queue) open on demand.
+- **☀ / ☾** toggles dark and light; the choice is remembered.
+- **Cancel** interrupts the current download immediately, keeping the partial
+  file so a rerun resumes.
+- The progress bar eases to each new value and shows an animated shimmer while
+  a stage has no known percentage (probing, merging). The activity log grows
+  with its content instead of reserving a tall empty box.
 
 The GUI holds no downloading logic. It collects a `Settings`, runs
 `engine.run_batch` on a worker thread, and renders the events that come back;
@@ -188,7 +186,7 @@ Exit codes: `0` all succeeded, `1` some failed, `2` ffmpeg/ffprobe missing,
 ## Development
 
 ```bat
-python -m unittest test_selector test_engine test_gui -v   :: 168 offline tests
+python -m unittest test_selector test_engine test_gui -v   :: 200 offline tests
 python -m unittest test_gui -v                            :: GUI only
 python smoke_test.py                                      :: live network test
 python capture_fixtures.py                                :: refresh fixtures
@@ -211,6 +209,8 @@ downy/
   engine.py        The pipeline (UI-agnostic, event callbacks)
   cli.py           Terminal front-end (argparse)
   gui.py           Desktop front-end (tkinter)
+  theme.py         Dark/light palettes, typography, easing
+  widgets.py       Canvas-drawn buttons, chips, progress bar
   gui_worker.py    Thread/queue bridge keeping Tk single-threaded
 ytd.py             Backward-compatible shim -> python -m downy
 ```
@@ -246,4 +246,5 @@ That seam is why a web front-end needs no knowledge of yt-dlp or ffmpeg.
 Python 3.10+, ffmpeg + ffprobe on `PATH` (or next to the project), and
 yt-dlp (`pip install -r requirements.txt`). deno is recommended so yt-dlp can
 solve YouTube's JS challenges.
+
 
