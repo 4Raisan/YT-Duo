@@ -36,19 +36,28 @@ python -m downy https://youtu.be/ID :: one URL, no queue file
 python -m downy --gui
 ```
 
-![DownY desktop window](gui-screenshot.png)
+One action up front: paste a link, press Enter. Everything else appears only
+when it is useful, so the window starts at roughly 680×210 and grows with the
+content.
 
-Everything the CLI does, with a UI:
+| Idle | Downloading |
+|---|---|
+| ![idle](gui-idle.png) | ![running](gui-running.png) |
 
-- **Paste a link** and press Enter (or click **Download now**) for a single
-  video. Text containing several links can go to the queue instead.
+Options (output folder, cookies, skip-downloaded, queue management) live behind
+the **⚙ Options** button:
+
+![options](gui-expanded.png)
+
 - **Quality** caps the resolution (Best / 2160p / 1440p / 1080p / 720p /
   480p / 360p). It is a ceiling, not a demand: asking for 720p on a 480p
   video downloads 480p rather than failing.
-- **Mode** works exactly as on the command line, with a one-line explanation.
-- **Queue** accepts manual additions, `links.txt`, or a pasted list.
+- **Format** is a friendly wrapper over the three modes, with a one-line
+  explanation for the current choice.
 - **Cancel** interrupts the current download immediately -- not merely the
   next queue item -- and keeps the partial file so a rerun resumes.
+- The activity log grows with its content (4–12 lines) rather than reserving
+  a tall empty box, and the progress bar is hidden when nothing is running.
 - Settings persist to `config.json` and are shared with the CLI.
 
 The GUI holds no downloading logic. It collects a `Settings`, runs

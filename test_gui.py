@@ -36,6 +36,16 @@ def make_workspace():
     return path
 
 
+def _finished(app):
+    """True once the app reports a terminal state.
+
+    Wording-agnostic, so cosmetic copy changes to the status line do not
+    break behavioural tests.
+    """
+    return app.status_var.get().startswith(
+        ("Done:", "Finished:", "Cancelled", "Stopped"))
+
+
 def pump_until(root, predicate, timeout=10.0):
     """Run the Tk event loop until ``predicate`` is true or we time out."""
     deadline = time.time() + timeout
@@ -96,11 +106,107 @@ class GuiTestCase(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
 
+class CompactLayout(GuiTestCase):
+    """The window should stay quiet until it has something to show."""
+
+    def test_options_panel_starts_collapsed(self):
+        self.assertFalse(self.app.settings_visible)
+        self.assertEqual(self.app.advanced.winfo_manager(), "")
+
+    def test_toggle_shows_and_hides_options(self):
+        self.app.toggle_settings()
+        self.assertTrue(self.app.settings_visible)
+        self.assertEqual(self.app.advanced.winfo_manager(), "pack")
+        self.app.toggle_settings()
+        self.assertFalse(self.app.settings_visible)
+        self.assertEqual(self.app.advanced.winfo_manager(), "")
+
+    def test_log_hidden_until_content_arrives(self):
+        self.assertFalse(self.app._log_visible)
+        self.app.append_log("hello")
+        self.assertTrue(self.app._log_visible)
+
+    def test_start_button_hidden_when_queue_empty(self):
+        self.assertEqual(self.app.start_button.winfo_manager(), "")
+        self.app.queue_list.insert("end", "https://a.com/1")
+        self.app._refresh_queue_ui()
+        self.assertEqual(self.app.start_button.winfo_manager(), "pack")
+
+    def test_cancel_button_hidden_when_idle(self):
+        self.assertEqual(self.app.cancel_button.winfo_manager(), "")
+        self.app._set_running(True)
+        self.assertNotEqual(self.app.cancel_button.winfo_manager(), "")
+        self.app._set_running(False)
+        self.assertEqual(self.app.cancel_button.winfo_manager(), "")
+
+    def test_detail_line_appears_only_with_content(self):
+        self.assertEqual(self.app.detail_label.winfo_manager(), "")
+        self.app._on_progress({"index": 1, "label": "Video",
+                               "percent": " 50.0%", "speed": "1MB/s", "eta": ""})
+        self.assertEqual(self.app.detail_label.winfo_manager(), "pack")
+
+    def test_adding_to_queue_reveals_the_queue(self):
+        self.app.url_var.set("https://youtu.be/x")
+        self.app.add_to_queue()
+        self.assertTrue(self.app.settings_visible)
+        self.assertEqual(self.app.queue_count.cget("text"), "1 link(s) queued")
+
+    def test_multiple_links_route_to_the_queue_instead_of_erroring(self):
+        self.app.url_var.set("https://a.com/1 https://a.com/2")
+        with mock.patch.object(engine, "run_item", return_value={"path": "x"}), \
+             mock.patch("downy.gui.messagebox.showinfo") as info:
+            self.app.download_single()
+            pump_until(self.tk, lambda: self.app.worker is None)
+        self.assertFalse(info.called, "should queue, not warn")
+        self.assertIn("2 link(s) queued", self.app.queue_count.cget("text"))
+
+    def test_window_is_compact(self):
+        self.assertLessEqual(self.tk.winfo_width(), 760)
+        self.assertLessEqual(self.tk.winfo_height(), 520)
+
+
+class ModePicker(GuiTestCase):
+    """The Format dropdown shows friendly labels but stores real modes."""
+
+    def test_selecting_a_label_sets_the_mode(self):
+        from downy.gui import MODE_LABELS, LABEL_TO_MODE
+        index = MODE_LABELS.index("Most compatible")
+        self.app.mode_combo.current(index)
+        self.app.mode_combo.event_generate("<<ComboboxSelected>>")
+        self.tk.update()
+        self.assertEqual(self.app.mode_var.get(), LABEL_TO_MODE["Most compatible"])
+        self.assertEqual(self.app.mode_var.get(), "compat")
+
+    def test_setting_mode_var_updates_the_label(self):
+        self.app.mode_var.set("efficient")
+        self.assertEqual(self.app._mode_label_var.get(), "Smaller file")
+
+    def test_saved_mode_restores_the_label(self):
+        """A saved config drives both the mode var and its friendly label."""
+        from downy import gui
+
+        original = gui.read_config_file
+        gui.read_config_file = lambda _path: {"mode": "compat"}
+        try:
+            other = gui.DownyApp(tk.Toplevel(self.tk))
+        finally:
+            gui.read_config_file = original
+        try:
+            self.assertEqual(other.mode_var.get(), "compat")
+            self.assertEqual(other._mode_label_var.get(), "Most compatible")
+        finally:
+            other.destroy()
+
+    def test_help_text_follows_the_mode(self):
+        self.app.mode_var.set("compat")
+        self.assertIn("H.264", self.app.mode_help.cget("text"))
+
+
 class WindowConstruction(GuiTestCase):
     def test_defaults(self):
         self.assertEqual(self.app.quality_combo.get(), "Best available")
         self.assertEqual(self.app.mode_var.get(), "best")
-        self.assertEqual(self.app.status_var.get(), "Idle.")
+        self.assertEqual(self.app.status_var.get(), "Ready.")
 
     def test_quality_choices_map_to_heights(self):
         from downy.gui import QUALITY_CHOICES
@@ -174,16 +280,16 @@ class DownloadFlow(GuiTestCase):
             self.app.download_single()
             done = pump_until(
                 self.tk, lambda: self.app.worker is None and
-                "Finished" in self.app.status_var.get())
+                _finished(self.app))
 
         self.assertTrue(done, f"status stuck at {self.app.status_var.get()!r}")
-        self.assertIn("1 completed", self.app.status_var.get())
+        self.assertIn("1 downloaded", self.app.status_var.get())
         self.assertNotIn("failed", self.app.status_var.get())
         self.assertEqual(self.app.progress.cget("value"), 100)
 
         log = self.app.log.get("1.0", "end")
         self.assertIn("T", log)
-        self.assertIn("OK 1280x720", log)
+        self.assertIn("1280x720", log)
         self.assertIn("saved:", log)
         self.assertEqual(self.app.url_var.get(), "")
 
@@ -201,11 +307,11 @@ class DownloadFlow(GuiTestCase):
             self.app.start_queue()
             done = pump_until(
                 self.tk, lambda: self.app.worker is None and
-                "Finished" in self.app.status_var.get())
+                _finished(self.app))
 
         self.assertTrue(done)
         self.assertEqual(len(seen), 3)
-        self.assertIn("3 completed", self.app.status_var.get())
+        self.assertIn("3 downloaded", self.app.status_var.get())
 
     def test_progress_bar_follows_events(self):
         self.app._on_progress({"index": 1, "label": "Video",
@@ -231,7 +337,7 @@ class FailureHandling(GuiTestCase):
             self.app.download_single()
             done = pump_until(
                 self.tk, lambda: self.app.worker is None and
-                "Finished" in self.app.status_var.get())
+                _finished(self.app))
 
         self.assertTrue(done)
         self.assertIn("1 failed", self.app.status_var.get())
@@ -255,7 +361,7 @@ class FailureHandling(GuiTestCase):
             self.app.download_single()
             done = pump_until(
                 self.tk, lambda: self.app.worker is None and
-                "Finished" in self.app.status_var.get())
+                _finished(self.app))
 
         self.assertTrue(done)
         self.assertIn("1 failed", self.app.status_var.get())
@@ -337,7 +443,7 @@ class Cancellation(GuiTestCase):
 
     def test_cancel_without_running_is_harmless(self):
         self.app.cancel()  # must not raise
-        self.assertEqual(self.app.status_var.get(), "Idle.")
+        self.assertEqual(self.app.status_var.get(), "Ready.")
 
 
 class EventBridgeBehaviour(unittest.TestCase):
@@ -421,4 +527,7 @@ class UrlExtraction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+
 
