@@ -10,12 +10,25 @@ which ones failed and why, and never silently overwrites a file.
 
 ## Quick start
 
+Two launchers, both safe to double-click:
+
+| File | Opens |
+|---|---|
+| **`DownY-GUI.bat`** | the desktop window, with no console left behind |
+| **`runner.bat`** | setup check, then the window |
+
 ```bat
-runner.bat
+DownY-GUI.bat              :: window
+runner.bat                 :: window (after checking dependencies)
+runner.bat cli             :: terminal version on links.txt
+runner.bat cli --version   :: any CLI flag
 ```
 
-`runner.bat` installs anything missing (Python, pip, ffmpeg, deno, yt-dlp),
-then runs the downloader. Run it again if it asks you to.
+Both install anything missing (Python, pip, ffmpeg, deno, yt-dlp) before
+starting. If setup changes PATH, they ask you to run them once more.
+
+Add `--no-pause` to `runner.bat` for scripted or scheduled runs so it does
+not wait for a keypress (e.g. `runner.bat cli --no-pause`).
 
 Or, if your dependencies are already installed:
 
@@ -33,7 +46,7 @@ python -m downy https://youtu.be/ID :: one URL, no queue file
 ## Desktop window
 
 ```bat
-python -m downy --gui
+DownY-GUI.bat
 ```
 
 A modern dark UI (with a light mode) drawn entirely on Canvas. tkinter's

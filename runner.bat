@@ -10,7 +10,30 @@ setlocal EnableDelayedExpansion
 set "NEED_RESTART=0"
 set "FAILED=0"
 
+:: A single place that decides whether to hold the window open. Set
+:: NO_PAUSE=1 (or pass --no-pause) for scripted, piped or scheduled runs.
+goto :main
+
+:hold
+if defined NO_PAUSE exit /b 0
+pause
+exit /b 0
+
+:main
+
 cd /d "%~dp0"
+
+:: --no-pause makes the launcher scriptable: it never waits for a keypress.
+:: It is stripped from the arguments so it cannot leak into the app's CLI.
+set "ARGS="
+set "NO_PAUSE="
+for %%a in (%*) do (
+    if /i "%%a"=="--no-pause" (
+        set "NO_PAUSE=1"
+    ) else (
+        set "ARGS=!ARGS! %%a"
+    )
+)
 
 :: --- Check winget ---
 winget --version >nul 2>&1
@@ -18,7 +41,7 @@ if errorlevel 1 (
     echo   [X] winget not available
     echo       Install "App Installer" from the Microsoft Store first.
     echo.
-    pause
+    call :hold
     exit /b 1
 )
 
@@ -110,7 +133,7 @@ if "%FAILED%"=="1" (
     echo    Setup incomplete. Fix the errors above.
     echo   ==========================================
     echo.
-    pause
+    call :hold
     exit /b 1
 )
 
@@ -123,37 +146,75 @@ if "%NEED_RESTART%"=="1" (
     echo    so PATH changes take effect.
     echo   ==========================================
     echo.
-    pause
+    call :hold
     exit /b 0
 )
 
 :: --- Install / update dependencies ---
+:: Only touch pip when yt-dlp is actually missing. An unconditional
+:: --upgrade blocks on a slow or offline connection, which made this
+:: launcher appear frozen for minutes at a time.
 echo.
-echo   Updating yt-dlp...
-%PY% -m pip install --upgrade --quiet -r "%~dp0requirements.txt" >nul 2>&1
+%PY% -c "import yt_dlp" >nul 2>&1
 if errorlevel 1 (
-    echo   [!] yt-dlp update failed ^(offline or permission^); using installed copy.
+    echo   Installing yt-dlp...
+    %PY% -m pip install --upgrade --quiet -r "%~dp0requirements.txt" >nul 2>&1
+    if errorlevel 1 (
+        echo   [!] yt-dlp install failed ^(offline or permission^).
+        echo       The app will start but downloads will not work.
+    ) else (
+        echo   [OK] yt-dlp
+    )
 ) else (
     echo   [OK] yt-dlp
 )
 
-if not "%~1"=="" goto :run
+:: Dispatch on the cleaned argument list:
+::   (nothing)      -> open the window
+::   cli <args>     -> terminal version with <args>
+::   <args>         -> terminal version (so flags like --version work)
+set "FIRST=!ARGS!"
+for /f "tokens=1 delims= " %%f in ("!FIRST!") do set "FIRST=%%f"
+
+if "!ARGS!"=="" goto :run_gui
+if /i "!FIRST!"=="cli" (
+    set "ARGS=!ARGS: cli=!"
+    set "ARGS=!ARGS:cli=!"
+    goto :run_cli
+)
+
+:: Bare invocation means a person double-clicked the file.
+echo.
+goto :run_cli
+
+:run_gui
 echo.
 echo   All ready!
 echo.
-echo   Tip: to open the window instead, run:   runner.bat --gui
-timeout /t 3 /nobreak >nul
-cls
-
-:run
+echo   Opening the window. For the terminal version run:
+echo       runner.bat cli
 echo.
-%PY% -m downy %*
-set "EXITCODE=%errorlevel%"
+timeout /t 2 /nobreak >nul
+cls
+%PY% -m downy --gui
+set "EXITCODE=!errorlevel!"
+goto :done
+
+:run_cli
+%PY% -m downy!ARGS!
+set "EXITCODE=!errorlevel!"
+
+:done
 echo.
 if "%EXITCODE%"=="0" (
     echo   Finished successfully.
 ) else (
     echo   Finished with errors ^(exit %EXITCODE%^).
 )
-pause
+:: Hold the window only on a hands-on run. `set "NO_PAUSE=1"` before calling
+:: (or passing --no-pause) keeps it non-interactive for scripts, tests and
+:: scheduled jobs, where a keypress would never arrive.
+if defined NO_PAUSE exit /b %EXITCODE%
+call :hold
 exit /b %EXITCODE%
+
