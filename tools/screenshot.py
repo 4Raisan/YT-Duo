@@ -16,6 +16,7 @@ from downy.gui import DownyApp  # noqa: E402
 from tools.capture import capture  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS = os.path.join(HERE, "docs")
 
 
 def make_app(theme="dark"):
@@ -46,6 +47,7 @@ def populate_running(app):
 
 
 def shoot(theme, out_name, running=False):
+    os.makedirs(DOCS, exist_ok=True)
     root, app = make_app(theme)
     if running:
         populate_running(app)
@@ -58,7 +60,7 @@ def shoot(theme, out_name, running=False):
     if root.winfo_height() < needed:
         root.geometry(f"{root.winfo_width()}x{needed}")
         root.update()
-    size = capture(root, os.path.join(HERE, out_name))
+    size = capture(root, os.path.join(DOCS, out_name))
     print(f"wrote {out_name} {size}")
     app.destroy()
     root.destroy()
@@ -68,3 +70,5 @@ if __name__ == "__main__":
     shoot("dark", "gui-idle.png")
     shoot("dark", "gui-running.png", running=True)
     shoot("light", "gui-light.png")
+
+

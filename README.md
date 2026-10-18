@@ -56,9 +56,9 @@ to get real colour, rounded corners and animated transitions.
 
 | Idle | Downloading |
 |---|---|
-| ![idle](gui-idle.png) | ![running](gui-running.png) |
+| ![idle](docs/gui-idle.png) | ![running](docs/gui-running.png) |
 
-![light theme](gui-light.png)
+![light theme](docs/gui-light.png)
 
 - **Quality** is a row of chips (Best / 2160p … 360p). It is a ceiling, not a
   demand: asking for 720p on a 480p video downloads 480p rather than failing.
@@ -259,5 +259,6 @@ That seam is why a web front-end needs no knowledge of yt-dlp or ffmpeg.
 Python 3.10+, ffmpeg + ffprobe on `PATH` (or next to the project), and
 yt-dlp (`pip install -r requirements.txt`). deno is recommended so yt-dlp can
 solve YouTube's JS challenges.
+
 
 
