@@ -72,6 +72,7 @@ class Settings:
         cookies_from_browser=None,
         cookie_file=None,
         require_supported_host=True,
+        max_height=None,
     ):
         self.root = os.path.abspath(root or project_root())
         self.mode = mode
@@ -93,14 +94,20 @@ class Settings:
         self.cookies_from_browser = cookies_from_browser
         self.cookie_file = self._abs(cookie_file) if cookie_file else None
         self.require_supported_host = require_supported_host
+        self.max_height = int(max_height) if max_height else None
 
     def _abs(self, path):
         return path if os.path.isabs(path) else os.path.join(self.root, path)
 
     @property
     def archive_file(self):
-        """yt-dlp's download archive -- the record of what already succeeded."""
-        return os.path.join(self.root, ".downy-archive.txt")
+        """yt-dlp's download archive -- what already succeeded.
+
+        Kept inside the output folder so "already downloaded" always means
+        "already downloaded *here*". A single shared archive would make a
+        changed output directory skip everything silently.
+        """
+        return os.path.join(self.output_dir, ".downy-archive.txt")
 
     @property
     def work_dirs(self):
@@ -134,6 +141,7 @@ class Settings:
             "cookies_from_browser": self.cookies_from_browser,
             "cookie_file": self.cookie_file,
             "require_supported_host": self.require_supported_host,
+            "max_height": self.max_height,
         }
         fields.update(changes)
         return Settings(**fields)
@@ -155,6 +163,16 @@ def read_config_file(path):
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def write_config(path, data):
+    """Persist settings atomically so a crash cannot truncate the file."""
+    folder = os.path.dirname(os.path.abspath(path))
+    os.makedirs(folder, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, sort_keys=True)
+    os.replace(tmp, path)
 
 
 def resolve_mode(cli_mode=None, config=None, environ=None):

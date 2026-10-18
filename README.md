@@ -21,10 +21,39 @@ Or, if your dependencies are already installed:
 
 ```bat
 python -m downy                     :: read links.txt
+python -m downy --gui               :: open the desktop window
 python -m downy -m compat           :: H.264/AAC in MP4
+python -m downy -r 720              :: cap resolution at 720p
 python -m downy --dry-run           :: preview selections, download nothing
 python -m downy https://youtu.be/ID :: one URL, no queue file
 ```
+
+---
+
+## Desktop window
+
+```bat
+python -m downy --gui
+```
+
+![DownY desktop window](gui-screenshot.png)
+
+Everything the CLI does, with a UI:
+
+- **Paste a link** and press Enter (or click **Download now**) for a single
+  video. Text containing several links can go to the queue instead.
+- **Quality** caps the resolution (Best / 2160p / 1440p / 1080p / 720p /
+  480p / 360p). It is a ceiling, not a demand: asking for 720p on a 480p
+  video downloads 480p rather than failing.
+- **Mode** works exactly as on the command line, with a one-line explanation.
+- **Queue** accepts manual additions, `links.txt`, or a pasted list.
+- **Cancel** interrupts the current download immediately -- not merely the
+  next queue item -- and keeps the partial file so a rerun resumes.
+- Settings persist to `config.json` and are shared with the CLI.
+
+The GUI holds no downloading logic. It collects a `Settings`, runs
+`engine.run_batch` on a worker thread, and renders the events that come back;
+widgets are only ever touched on the Tk thread.
 
 ---
 
@@ -71,8 +100,10 @@ Set the mode with any of, in precedence order:
 python -m downy [URL ...] [options]
 
 -m, --mode MODE              best | efficient | compat
+-r, --resolution HEIGHT      cap video height, e.g. 720 or 1080
 -f, --links PATH             queue file to read instead of links.txt
 -o, --output DIR             output folder (default: downloads/)
+    --gui                    open the desktop window
     --no-numbered            don't prefix filenames with a queue number
     --dry-run                show what would be picked, then exit
     --list-formats           print every available stream, then exit
@@ -148,25 +179,31 @@ Exit codes: `0` all succeeded, `1` some failed, `2` ffmpeg/ffprobe missing,
 ## Development
 
 ```bat
-python -m unittest test_selector test_engine -v   :: 121 offline tests
-python -m unittest test_engine -v                 :: engine only
-python smoke_test.py                              :: live network test
-python capture_fixtures.py                        :: refresh format fixtures
+python -m unittest test_selector test_engine test_gui -v   :: 168 offline tests
+python -m unittest test_gui -v                            :: GUI only
+python smoke_test.py                                      :: live network test
+python capture_fixtures.py                                :: refresh fixtures
 ```
 
-`test_selector` and `test_engine` are fully offline — no network, no ffmpeg,
-no real folders touched. `smoke_test.py` is the only one that downloads.
+All three test modules are offline — no network, no ffmpeg, no real folders
+touched. `smoke_test.py` is the only one that downloads.
+
+`test_gui.py` drives the real window: it builds `DownyApp` against a Tk root,
+runs genuine worker threads, and asserts on the event flow, progress bar,
+cancellation and error dialogs. Only the download itself is stubbed.
 
 ### Layout
 
 ```
 downy/
-  config.py    Settings: paths, tunables, mode resolution
-  selector.py  Pure format ranking (no I/O, no network)
-  naming.py    Filesystem-safe names, collision-free paths
-  engine.py    The pipeline (UI-agnostic, event callbacks)
-  cli.py       Terminal front-end
-ytd.py         Backward-compatible shim -> python -m downy
+  config.py        Settings: paths, tunables, mode resolution
+  selector.py      Pure format ranking (no I/O, no network)
+  naming.py        Filesystem-safe names, collision-free paths
+  engine.py        The pipeline (UI-agnostic, event callbacks)
+  cli.py           Terminal front-end (argparse)
+  gui.py           Desktop front-end (tkinter)
+  gui_worker.py    Thread/queue bridge keeping Tk single-threaded
+ytd.py             Backward-compatible shim -> python -m downy
 ```
 
 `engine.py` never prints, never prompts, and never reads `sys.argv`. It reports
@@ -176,19 +213,19 @@ progress through an `emit(name, payload)` callback:
 from downy.config import Settings
 from downy import engine
 
-settings = Settings(mode="compat")
+settings = Settings(mode="compat", max_height=1080)
 summary = engine.run_batch(urls, settings,
                            emit=lambda name, data: print(name, data),
-                           should_stop=lambda: False)
+                           should_stop=lambda: cancel_flag.is_set())
 ```
 
-That seam is why the planned GUI and web front-ends need no knowledge of
-yt-dlp or ffmpeg.
+`should_stop` is polled between items **and** between download chunks, so a
+front-end can interrupt a large transfer promptly.
+
+That seam is why a web front-end needs no knowledge of yt-dlp or ffmpeg.
 
 ### Roadmap
 
-- **GUI** (`downy.gui`) — a small desktop window: drop URLs, pick a mode, watch
-  the same events the CLI renders.
 - **Web** (`downy.web`) — paste a link in a browser and get the file. The
   engine is already front-end agnostic; this needs a job queue and a streaming
   response, not a rewrite.

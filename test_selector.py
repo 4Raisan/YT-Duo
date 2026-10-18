@@ -371,6 +371,54 @@ class FallbackBehaviour(unittest.TestCase):
             selector.pick_video(formats, "best")["format_id"], "normal")
 
 
+class ResolutionCap(unittest.TestCase):
+    """--resolution / GUI quality picker."""
+
+    def test_cap_lowers_the_tier(self):
+        formats = DATA["1RXejVzyM4U"]["formats"]  # offers 2160p
+        picked = selector.pick_video(formats, "best", max_height=720)
+        self.assertLessEqual(selector.height_of(picked), 720)
+
+    def test_cap_picks_the_highest_tier_under_it(self):
+        formats = DATA["1RXejVzyM4U"]["formats"]
+        heights = selector.available_heights(formats, "best")
+        under = [h for h in heights if h <= 1080]
+        picked = selector.pick_video(formats, "best", max_height=1080)
+        self.assertEqual(selector.height_of(picked), max(under))
+
+    def test_cap_above_what_is_offered_changes_nothing(self):
+        formats = DATA["GczjVOpaPPI"]["formats"]  # tops out at 720
+        uncapped = selector.pick_video(formats, "best")
+        capped = selector.pick_video(formats, "best", max_height=4320)
+        self.assertEqual(uncapped["format_id"], capped["format_id"])
+
+    def test_impossible_cap_falls_back_instead_of_raising(self):
+        """A 100p cap on a 720p-only video must still produce a download."""
+        formats = DATA["GczjVOpaPPI"]["formats"]
+        picked = selector.pick_video(formats, "best", max_height=100)
+        self.assertIsNotNone(selector.vcodec_of(picked))
+
+    def test_none_cap_is_unlimited(self):
+        formats = DATA["1RXejVzyM4U"]["formats"]
+        self.assertEqual(
+            selector.pick_video(formats, "best")["format_id"],
+            selector.pick_video(formats, "best", max_height=None)["format_id"])
+
+    def test_cap_applies_through_pick_streams(self):
+        video, audio, merged = selector.pick_streams(
+            DATA["1RXejVzyM4U"]["formats"], "best", max_height=480)
+        self.assertLessEqual(selector.height_of(video), 480)
+        self.assertTrue(merged)
+        self.assertIsNotNone(audio)
+
+    def test_available_heights_is_descending_and_unique(self):
+        for vid, data in DATA.items():
+            with self.subTest(vid=vid):
+                heights = selector.available_heights(data["formats"], "best")
+                self.assertEqual(heights, sorted(set(heights), reverse=True))
+                self.assertTrue(all(h > 0 for h in heights))
+
+
 class EmptyAndDegenerate(unittest.TestCase):
     def test_no_formats_raises(self):
         with self.assertRaises(NoSuitableFormat):

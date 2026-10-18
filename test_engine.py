@@ -547,7 +547,7 @@ class RunBatch(TempWorkspace):
         events = []
         calls = []
 
-        def fake_run_item(url, index, total, settings, emit):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None):
             calls.append((url, index))
             if "bad" in url:
                 raise ValueError("nope")
@@ -572,7 +572,41 @@ class RunBatch(TempWorkspace):
             summary = engine.run_batch(
                 ["a", "b", "c"], self.settings, should_stop=lambda: True)
         self.assertEqual(summary["completed"], 0)
-        self.assertEqual(summary["skipped"], 3)
+        # Items never started are "pending", distinct from "skipped"
+        # (already archived) and from a cancelled in-flight item.
+        self.assertEqual(summary["pending"], 3)
+        self.assertEqual(summary["skipped"], 0)
+        self.assertTrue(summary["cancelled"])
+
+    def test_cancel_mid_item_is_not_counted_as_failure(self):
+        """A Cancelled raised inside an item stops the run cleanly."""
+        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+            raise engine.Cancelled()
+
+        events = []
+        with mock.patch.object(engine, "run_item", side_effect=fake_run_item):
+            summary = engine.run_batch(
+                ["a", "b"], self.settings,
+                emit=lambda n, d: events.append(n))
+
+        self.assertEqual(summary["failed"], 0)
+        self.assertTrue(summary["cancelled"])
+        self.assertIn("batch_interrupted", events)
+
+    def test_progress_hook_raises_on_cancel(self):
+        """The hook polls should_stop so a large download can be interrupted."""
+        hook = engine._make_hook("Video", 1, lambda n, d: None,
+                                 should_stop=lambda: True)
+        with self.assertRaises(engine.Cancelled):
+            hook({"status": "downloading", "_percent_str": "10.0%"})
+
+    def test_progress_hook_passes_events_when_not_cancelled(self):
+        seen = []
+        hook = engine._make_hook("Video", 1, lambda n, d: seen.append(n),
+                                 should_stop=lambda: False)
+        hook({"status": "downloading", "_percent_str": "10.0%",
+              "_speed_str": "1MiB/s", "_eta_str": "00:01"})
+        self.assertEqual(seen, ["progress"])
 
     def test_sleep_interval_between_items_only(self):
         sleeps = []
@@ -586,27 +620,68 @@ class RunBatch(TempWorkspace):
 # ── host support detection ───────────────────────────────────────────
 
 class ArchiveTracking(TempWorkspace):
+    def _output(self, name="video.mp4"):
+        path = os.path.join(self.settings.output_dir, name)
+        with open(path, "wb") as fh:
+            fh.write(b"x")
+        return path
+
     def test_already_downloaded_is_false_initially(self):
         self.assertFalse(engine.already_downloaded("https://youtu.be/a", self.settings))
 
     def test_recording_makes_it_skippable(self):
-        engine._record_archive("https://youtu.be/a", self.settings)
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
         self.assertTrue(engine.already_downloaded("https://youtu.be/a", self.settings))
         self.assertFalse(engine.already_downloaded("https://youtu.be/b", self.settings))
 
+    def test_entry_is_ignored_once_the_file_is_gone(self):
+        """A stale archive must not skip a video whose file was deleted."""
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
+        os.remove(out)
+        self.assertFalse(engine.already_downloaded("https://youtu.be/a", self.settings))
+
+    def test_archive_lives_in_the_output_folder(self):
+        self.assertTrue(self.settings.archive_file.startswith(
+            self.settings.output_dir))
+
+    def test_a_different_output_folder_does_not_skip(self):
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
+
+        other = os.path.join(self.root, "elsewhere")
+        os.makedirs(other)
+        settings = self.settings.replace(output_dir=other)
+        self.assertFalse(engine.already_downloaded("https://youtu.be/a", settings))
+
     def test_recording_is_idempotent(self):
-        engine._record_archive("https://youtu.be/a", self.settings)
-        engine._record_archive("https://youtu.be/a", self.settings)
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
+        engine._record_archive("https://youtu.be/a", self.settings, out)
         with open(self.settings.archive_file, encoding="utf-8") as fh:
             self.assertEqual(len(fh.readlines()), 1)
 
+    def test_re_recording_a_new_path_replaces_the_entry(self):
+        first = self._output("v1.mp4")
+        engine._record_archive("https://youtu.be/a", self.settings, first)
+        second = self._output("v2.mp4")
+        engine._record_archive("https://youtu.be/a", self.settings, second)
+
+        with open(self.settings.archive_file, encoding="utf-8") as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].endswith("v2.mp4"))
+
     def test_archive_disabled_means_nothing_is_skipped(self):
-        engine._record_archive("https://youtu.be/a", self.settings)
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
         settings = self.settings.replace(use_archive=False)
         self.assertFalse(engine.already_downloaded("https://youtu.be/a", settings))
 
     def test_run_batch_skips_archived_urls(self):
-        engine._record_archive("https://youtu.be/a", self.settings)
+        out = self._output()
+        engine._record_archive("https://youtu.be/a", self.settings, out)
         events = []
         with mock.patch.object(engine, "run_item") as run_item_mock:
             summary = engine.run_batch(

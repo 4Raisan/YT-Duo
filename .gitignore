@@ -33,8 +33,12 @@ pip-wheel-metadata/
 
 # --- Test scratch directories ---
 _test-*/
+_guitest-*/
 downy-test-*/
 tmp*/
+# Ad-hoc verification folders used while developing (they hold downloads).
+_*/
+*.tmp
 
 # --- Editors / OS ---
 .vscode/

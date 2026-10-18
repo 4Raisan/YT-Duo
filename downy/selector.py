@@ -208,12 +208,23 @@ def _gate(formats, cfg, audio=False):
     return pool
 
 
-def pick_video(formats, mode="best"):
-    """Return the best video stream, falling back to a muxed stream."""
+def pick_video(formats, mode="best", max_height=None):
+    """Return the best video stream, falling back to a muxed stream.
+
+    ``max_height`` caps the resolution without forcing an exact tier: asking
+    for 720p on a video that only offers 480p yields 480p, not a failure.
+    Candidates above the cap are dropped; if that empties the pool the cap is
+    ignored rather than raising, because a stream at the wrong size is still
+    better than no download.
+    """
     cfg = _config(mode)
     pool = _gate(formats, cfg, audio=False)
     split = [fmt for fmt in pool if is_video_only(fmt)]
     candidates = split or pool
+    if max_height:
+        capped = [fmt for fmt in candidates if height_of(fmt) <= max_height]
+        if capped:
+            candidates = capped
     if not candidates:
         raise NoSuitableFormat("no video stream available")
     return max(
@@ -234,15 +245,22 @@ def pick_audio(formats, mode="best"):
     )
 
 
-def pick_streams(formats, mode="best"):
+def pick_streams(formats, mode="best", max_height=None):
     """Return (video, audio, needs_merge)."""
-    video = pick_video(formats, mode)
+    video = pick_video(formats, mode, max_height)
     if not is_video_only(video):
         return video, None, False
     try:
         return video, pick_audio(formats, mode), True
     except NoSuitableFormat:
         return video, None, False
+
+
+def available_heights(formats, mode="best"):
+    """Distinct resolutions offered, largest first -- for a GUI picker."""
+    cfg = _config(mode)
+    pool = _gate(formats, cfg, audio=False)
+    return sorted({int(height_of(f)) for f in pool if height_of(f)}, reverse=True)
 
 
 def container_for(mode="best"):

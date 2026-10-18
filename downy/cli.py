@@ -18,6 +18,21 @@ from .config import Settings, read_config_file, resolve_mode
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 
+def extract_urls(text):
+    """Return the URLs embedded in free-form text, punctuation trimmed.
+
+    Shared by the terminal front-end and the GUI so both accept exactly
+    the same input.
+    """
+    out = []
+    for line in (text or "").splitlines():
+        for url in URL_RE.findall(line):
+            cleaned = url.rstrip(".,;:!?\"')]")
+            if cleaned:
+                out.append(cleaned)
+    return out
+
+
 # ── Argument parsing ─────────────────────────────────────────────────
 
 class ModeAction(argparse.Action):
@@ -56,6 +71,10 @@ def build_parser():
         "-f", "--links", dest="link_file", default=None, metavar="PATH",
         help="queue file to read instead of links.txt")
     parser.add_argument(
+        "-r", "--resolution", dest="max_height", type=int, default=None,
+        metavar="HEIGHT",
+        help="cap video height, e.g. 720 or 1080 (default: best available)")
+    parser.add_argument(
         "-o", "--output", dest="output_dir", default=None, metavar="DIR",
         help="output folder (default: downloads/)")
     parser.add_argument(
@@ -83,6 +102,9 @@ def build_parser():
     parser.add_argument(
         "--cleanup", action="store_true",
         help="prune recycle/ and remove leftover .part files, then exit")
+    parser.add_argument(
+        "--gui", action="store_true",
+        help="open the desktop window instead of running in the terminal")
     parser.add_argument(
         "-q", "--quiet", action="store_true",
         help="only print errors and the final summary")
@@ -117,7 +139,7 @@ def read_queue(path):
             if line.startswith("#"):
                 continue
 
-            found = [u.rstrip(".,;\"')") for u in URL_RE.findall(line)]
+            found = extract_urls(line)
             if not found and not line.lower().startswith(("http://", "https://")):
                 continue  # notes, separators, leaderboards, credentials
 
@@ -141,9 +163,9 @@ def prompt_for_urls(stream=None):
             break
         if not line:
             break
-        found = URL_RE.findall(line)
+        found = extract_urls(line)
         if found:
-            urls.extend(u.rstrip(".,;\"')") for u in found)
+            urls.extend(found)
     return urls
 
 
@@ -286,6 +308,10 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.gui:
+        from .gui import main as gui_main
+        return gui_main()
+
     out = sys.stdout
     file_config = read_config_file(Settings().config_file)
     mode = args.mode or resolve_mode(None, file_config)
@@ -299,6 +325,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         output_dir=args.output_dir,
         use_archive=not args.no_archive,
         cookies_from_browser=args.cookies_from_browser,
+        max_height=args.max_height,
     )
 
     renderer = ConsoleRenderer(quiet=args.quiet, stream=out)
@@ -320,6 +347,11 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
 
     urls = list(args.urls)
     if not urls:
+        if args.link_file and not os.path.exists(settings.link_file):
+            # An explicitly named queue file that does not exist is an error,
+            # not a cue to prompt: a scheduled job must not sit waiting.
+            out.write(f"  ERROR: queue file not found: {settings.link_file}\n")
+            return 1
         urls = read_queue(settings.link_file)
     if not urls:
         urls = prompt_for_urls(out)
@@ -349,7 +381,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
                         f"no extractor for this host: {url}")
                 info = engine.probe(url, settings)
                 video, audio, _ = selector.pick_streams(
-                    info.get("formats") or [], mode)
+                    info.get("formats") or [], mode, settings.max_height)
                 container = engine._container_for_streams(video, audio)
                 out.write(f"  [{index}] {info.get('title', url)[:60]}\n")
                 out.write(f"       {selector.describe(video)} -> .{container}\n")

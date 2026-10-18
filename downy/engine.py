@@ -48,6 +48,10 @@ class UnsupportedHostError(Exception):
     """yt-dlp has no extractor for this host, and it cannot be guessed at."""
 
 
+class Cancelled(Exception):
+    """The user asked to stop. Raised from progress hooks, not a failure."""
+
+
 # ── Small helpers ────────────────────────────────────────────────────
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
@@ -155,10 +159,17 @@ class EngineLogger:
             self.emit("warning", {"message": text})
 
 
-def _make_hook(label, index, emit):
-    """Translate yt-dlp's progress dicts into ``progress``/``stream_done`` events."""
+def _make_hook(label, index, emit, should_stop=None):
+    """Translate yt-dlp's progress dicts into ``progress``/``stream_done`` events.
+
+    ``should_stop`` is polled between chunks so a Cancel click interrupts a
+    large in-flight download instead of waiting for it to finish.
+    """
 
     def hook(d):
+        if should_stop is not None and should_stop():
+            raise Cancelled()
+
         status = d.get("status")
         if status == "downloading":
             emit("progress", {
@@ -297,18 +308,23 @@ RETRYABLE = (
 )
 
 
-def fetch_stream(url, fmt, outtmpl, label, settings, index=0, emit=None):
+def fetch_stream(url, fmt, outtmpl, label, settings, index=0, emit=None,
+                 should_stop=None):
     """Download one selected stream. Returns (filepath, info).
 
     Stream URLs are short-lived and high-bitrate streams are occasionally
     refused with a transient 403, so failures are retried against freshly
     extracted URLs. Resumable partials make this cheap.
+
+    ``should_stop`` lets a front-end interrupt a large in-flight download.
     """
     emit = emit or (lambda name, data: None)
     last_error = None
 
     for attempt in range(1, settings.download_attempts + 1):
         try:
+            if should_stop is not None and should_stop():
+                raise Cancelled()
             logger = EngineLogger(emit)
             opts = _base_opts(settings, logger)
             # The archive is keyed per *item*, not per stream: recording it
@@ -317,7 +333,7 @@ def fetch_stream(url, fmt, outtmpl, label, settings, index=0, emit=None):
             opts.pop("download_archive", None)
             opts["format"] = fmt["format_id"]
             opts["outtmpl"] = outtmpl
-            opts["progress_hooks"] = [_make_hook(label, index, emit)]
+            opts["progress_hooks"] = [_make_hook(label, index, emit, should_stop)]
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
 
@@ -331,7 +347,15 @@ def fetch_stream(url, fmt, outtmpl, label, settings, index=0, emit=None):
                 raise FileNotFoundError(
                     f"{label} stream missing on disk for {info['id']}")
             return path, info
+        except Cancelled:
+            raise
         except yt_dlp.utils.DownloadError as exc:
+            # The progress hook raises Cancelled from inside yt-dlp, which
+            # may arrive wrapped. Cancellation is never retried.
+            if isinstance(getattr(exc, "__cause__", None), Cancelled):
+                raise exc.__cause__
+            if "cancelled" in str(exc).lower():
+                raise Cancelled()
             last_error = exc
             text = str(exc).lower()
             if not any(token in text for token in RETRYABLE):
@@ -609,41 +633,72 @@ def merge(index, title, video_file, audio_file, video_fmt, audio_fmt,
 
 # ── Batch orchestration ──────────────────────────────────────────────
 
-def already_downloaded(url, settings):
-    """True if ``url`` is recorded in the archive as a completed download."""
-    if not settings.use_archive or not os.path.exists(settings.archive_file):
-        return False
+def _archive_entries(settings):
+    """Map url -> recorded output path (or None for legacy entries)."""
+    entries = {}
+    if not os.path.exists(settings.archive_file):
+        return entries
     try:
         with open(settings.archive_file, encoding="utf-8") as fh:
             for line in fh:
-                parts = line.strip().split(" ", 1)
-                if len(parts) == 2 and parts[1] == url:
-                    return True
+                parts = line.strip().split(" ", 2)
+                if len(parts) == 2:
+                    entries[parts[1]] = None
+                elif len(parts) == 3:
+                    entries[parts[1]] = parts[2]
     except OSError:
+        return {}
+    return entries
+
+
+def already_downloaded(url, settings):
+    """True if ``url`` was completed *and its file still exists*.
+
+    The archive stores the output path alongside the URL. An entry whose
+    file has since been moved or deleted -- or that was written to a
+    different output folder -- is treated as not downloaded, otherwise a
+    changed output directory would silently skip everything forever.
+    """
+    if not settings.use_archive:
         return False
-    return False
+    stored = _archive_entries(settings).get(url)
+    if stored is None:
+        # Legacy entry written before paths were tracked. It lives inside the
+        # output folder, so it still describes downloads made there.
+        return url in _archive_entries(settings)
+    return os.path.isfile(stored)
 
 
-def _record_archive(url, settings):
-    """Append ``url`` to the archive file after a verified success.
+def _record_archive(url, settings, path):
+    """Append ``url`` and its output path after a verified success.
 
     Done manually rather than letting yt-dlp record it per stream, so a
     video whose merge failed is retried next run instead of being skipped
-    forever. Format matches yt-dlp's own ``download_archive`` lines.
+    forever. The format is ``downy <url> <path>``.
     """
     if not settings.use_archive:
         return
-    if already_downloaded(url, settings):
+    existing = _archive_entries(settings)
+    if url in existing and existing[url] == path:
         return
+    lines = [
+        f"downy {u}" + (f" {p}" if p else "")
+        for u, p in existing.items() if u != url
+    ]
+    lines.append(f"downy {url} {path}")
     try:
-        with open(settings.archive_file, "a", encoding="utf-8") as fh:
-            fh.write(f"downy {url}\n")
+        with open(settings.archive_file, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
     except OSError:
         pass
 
 
-def run_item(url, index, total, settings, emit=None):
-    """Process one URL end-to-end. Raises on failure; returns a report."""
+def run_item(url, index, total, settings, emit=None, should_stop=None):
+    """Process one URL end-to-end. Raises on failure; returns a report.
+
+    ``should_stop`` is polled between chunks of an in-flight download, so
+    Cancel interrupts immediately rather than at the next queue item.
+    """
     emit = emit or (lambda name, data: None)
     emit("item_start", {"index": index, "total": total, "url": url})
 
@@ -657,7 +712,8 @@ def run_item(url, index, total, settings, emit=None):
     info = probe(url, settings, logger)
     title = info.get("title") or info.get("id") or f"item {index}"
     formats = info.get("formats") or []
-    video_fmt, audio_fmt, needs_merge = selector.pick_streams(formats, settings.mode)
+    video_fmt, audio_fmt, needs_merge = selector.pick_streams(
+        formats, settings.mode, settings.max_height)
 
     emit("probe", {
         "index": index,
@@ -670,17 +726,18 @@ def run_item(url, index, total, settings, emit=None):
     try:
         video_path, _ = fetch_stream(
             url, video_fmt, os.path.join(settings.video_dir, "%(id)s_video.%(ext)s"),
-            "Video", settings, index, emit)
+            "Video", settings, index, emit, should_stop)
         if audio_fmt:
             audio_path, _ = fetch_stream(
                 url, audio_fmt, os.path.join(settings.audio_dir, "%(id)s_audio.%(ext)s"),
-                "Audio", settings, index, emit)
+                "Audio", settings, index, emit, should_stop)
 
         report = merge(index, title, video_path, audio_path, video_fmt,
                        audio_fmt, settings, emit)
-        _record_archive(url, settings)
+        _record_archive(url, settings, report["path"])
         return report
-    except (NoSuitableFormat, MergeError, ValidationError, KeyboardInterrupt):
+    except (NoSuitableFormat, MergeError, ValidationError, KeyboardInterrupt,
+            Cancelled):
         # Keep intermediates in recycle/ -- a rerun can often resume them.
         raise
     except Exception:
@@ -692,8 +749,8 @@ def run_item(url, index, total, settings, emit=None):
 def run_batch(urls, settings, emit=None, should_stop=None):
     """Download every URL in order. Returns a summary dict.
 
-    ``should_stop`` is an optional callable polled between items so a GUI
-    can cancel a run -- no signal handling required by the front-end.
+    ``should_stop`` is an optional callable polled between items *and*
+    between chunks of each download, so a GUI can cancel promptly.
     """
     emit = emit or (lambda name, data: None)
     should_stop = should_stop or (lambda: False)
@@ -701,21 +758,26 @@ def run_batch(urls, settings, emit=None, should_stop=None):
     settings.ensure_dirs()
     results = []
     total = len(urls)
+    cancelled = False
+    interrupted_index = None
 
     for position, url in enumerate(urls, 1):
         if should_stop():
+            cancelled = True
             break
         if already_downloaded(url, settings):
             results.append({"url": url, "ok": True, "skipped": True})
             emit("item_skipped", {"index": position, "url": url})
             continue
         try:
-            report = run_item(url, position, total, settings, emit)
+            report = run_item(url, position, total, settings, emit, should_stop)
             results.append({"url": url, "ok": True, "report": report})
             emit("item_ok", {"index": position, "report": report})
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, Cancelled):
             emit("batch_interrupted", {"index": position})
-            raise
+            cancelled = True
+            interrupted_index = position
+            break
         except Exception as exc:
             detail = str(exc)
             results.append({"url": url, "ok": False, "reason": classify_error(exc),
@@ -731,12 +793,17 @@ def run_batch(urls, settings, emit=None, should_stop=None):
 
     completed = sum(1 for r in results if r["ok"] and not r.get("skipped"))
     failed = sum(1 for r in results if not r["ok"])
+    # An item interrupted mid-flight started but produced nothing, which is
+    # different from one that was never reached.
+    abandoned = 1 if interrupted_index is not None else 0
     summary = {
         "total": total,
         "completed": completed,
         "failed": failed,
-        "skipped": sum(1 for r in results if r.get("skipped"))
-        + (total - len(results)),
+        "skipped": sum(1 for r in results if r.get("skipped")),
+        "cancelled": cancelled,
+        "abandoned": abandoned,
+        "pending": max(0, total - len(results) - abandoned),
         "results": results,
     }
     emit("batch_done", summary)

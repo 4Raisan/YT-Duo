@@ -140,7 +140,9 @@ if errorlevel 1 (
 if not "%~1"=="" goto :run
 echo.
 echo   All ready!
-timeout /t 2 /nobreak >nul
+echo.
+echo   Tip: to open the window instead, run:   runner.bat --gui
+timeout /t 3 /nobreak >nul
 cls
 
 :run
