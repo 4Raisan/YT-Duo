@@ -1,4 +1,4 @@
-"""Regenerate fixtures/formats.json from live yt-dlp metadata.
+"""Regenerate tests/fixtures/formats.json from live yt-dlp metadata.
 
 Usage:  python capture_fixtures.py
 
@@ -13,8 +13,8 @@ import sys
 import yt_dlp
 
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "fixtures", "formats.json")
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(HERE, "tests", "fixtures", "formats.json")
 
 VIDEO_IDS = [
     "X98-gKKR4Bk",

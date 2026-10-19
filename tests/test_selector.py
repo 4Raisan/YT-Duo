@@ -1,6 +1,6 @@
 """Offline tests for selector.py.
 
-Uses fixtures/formats.json, captured from live yt-dlp metadata via
+Uses tests/fixtures/formats.json, captured from live yt-dlp metadata via
 capture_fixtures.py. No network access.
 
 Run:  python -m unittest test_selector -v
@@ -13,8 +13,8 @@ import unittest
 from ytduo import selector
 from ytduo.selector import NoSuitableFormat
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-FIXTURES = os.path.join(HERE, "fixtures", "formats.json")
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
+FIXTURES = os.path.join(HERE, "tests", "fixtures", "formats.json")
 
 VIDEO_IDS = [
     "X98-gKKR4Bk", "8qZELzy3-LY", "GczjVOpaPPI", "4rWx4cBh684",
@@ -488,7 +488,7 @@ class HDRBehaviour(unittest.TestCase):
 
 class NoHardcodedFormatIds(unittest.TestCase):
     def test_selector_source_contains_no_itag_literals(self):
-        path = os.path.join(HERE, "ytduo", "selector.py")
+        path = os.path.join(HERE, "src", "ytduo", "selector.py")
         with open(path, encoding="utf-8") as fh:
             source = fh.read()
         source = re.sub(r'"""[\s\S]*?"""', "", source)

@@ -1,5 +1,6 @@
 # --- Downloads and working data (large, regenerable, never commit) ---
 downloads/
+YT-Duo Downloads/
 video/
 audio/
 recycle/
@@ -11,9 +12,15 @@ recycle/
 # links.txt holds a personal queue; keep it local.
 links.txt
 config.json
-downy.log
 *.log
-.downy-archive.txt
+.ytduo-archive.txt
+
+# --- Build output ---
+build/
+dist/
+*.spec.bak
+*.exe
+*.app/
 
 # --- Secrets: never commit, under any name ---
 .env
@@ -30,15 +37,15 @@ __pycache__/
 .venv/
 venv/
 pip-wheel-metadata/
+.eggs/
 
-# --- Test scratch directories ---
-_test-*/
-_guitest-*/
+# --- Test scratch (tests clean up, but never commit one) ---
+tests/_test-*/
+tests/_guitest-*/
 downy-test-*/
+ytduo-test-*/
 tmp*/
-# Ad-hoc verification folders used while developing (they hold downloads).
 _*/
-*.tmp
 
 # --- Editors / OS ---
 .vscode/
@@ -46,3 +53,40 @@ _*/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local historical evidence
+docs/archive/
+# Local release binaries
+Releases/*.zip
+Releases/*.tar.gz
+
+# Generated standalone launchers
+Releases/*.sh
+Releases/*.command
+
+# Local portable runtime cache
+.ytduo-runtime/
+Releases/config.json
+
+# Distribution output and runtime data
+Releases/**/*.exe
+Releases/**/*.zip
+Releases/**/*.tar.gz
+Releases/**/*.sh
+Releases/**/*.command
+Releases/**/.ytduo-runtime/
+Releases/**/config.json
+Releases/**/downloads/
+Releases/**/video/
+Releases/**/audio/
+Releases/**/recycle/
+.pytest_cache/
+*.spec
+.YT-Duo*-archive.txt
+.ytduo*-archive.txt
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.m4a
+*.opus

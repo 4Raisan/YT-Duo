@@ -27,7 +27,7 @@ from ytduo import config, engine
 from ytduo.config import Settings
 
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def make_workspace():

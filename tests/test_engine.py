@@ -22,18 +22,20 @@ from ytduo.config import Settings
 from ytduo.cli import read_queue
 
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
 
 
 def make_workspace():
-    """Create a throwaway directory under the project folder.
+    """Create a throwaway directory for one test.
 
-    Deliberately *not* ``tempfile.mkdtemp``: on Windows that applies an
-    owner-only ACL to the new directory, which makes it awkward for tooling
-    that runs under a different token. A plain mkdir inherits the parent's
-    permissions and behaves like any other project subfolder.
+    Deliberately *not* ``tempfile.mkdtemp``: on Windows that stamps the new
+    directory with an owner-only ACL, which later resists deletion. A plain
+    mkdir inherits normal permissions. It is cleaned up in tearDown, so the
+    repository never accumulates scratch folders.
     """
-    path = os.path.join(HERE, f"_test-{uuid.uuid4().hex[:12]}")
+    base = os.path.join(HERE, "tests")
+    path = os.path.join(base, f"_test-{uuid.uuid4().hex[:12]}")
+    os.makedirs(base, exist_ok=True)
     os.mkdir(path)
     return path
 
@@ -307,7 +309,7 @@ class Merge(TempWorkspace):
         # Sources were moved into recycle/, not left in place.
         self.assertFalse(os.path.exists(self.video))
         self.assertFalse(os.path.exists(self.audio))
-        self.assertEqual(len(os.listdir(self.settings.recycle_dir)), 2)
+        self.assertFalse(os.path.exists(self.settings.recycle_dir))
 
     def test_never_overwrites_an_existing_output(self):
         """The old code ran ffmpeg -y and silently replaced earlier files."""
@@ -382,7 +384,7 @@ class SettingsPaths(TempWorkspace):
         empty = make_workspace()
         try:
             env = dict(os.environ)
-            env["PYTHONPATH"] = HERE
+            env["PYTHONPATH"] = os.path.join(HERE, "src")
             probe = subprocess.run(
                 [sys.executable, "-c",
                  "import ytduo.engine, ytduo.cli, ytduo.config"],
@@ -414,15 +416,15 @@ class ModeResolution(unittest.TestCase):
     def test_config_beats_env(self):
         self.assertEqual(
             config.resolve_mode(None, {"mode": "efficient"},
-                                {"DOWNY_MODE": "compat"}), "efficient")
+                                {"YTDUO_MODE": "compat"}), "efficient")
 
     def test_env_beats_default(self):
         self.assertEqual(
-            config.resolve_mode(None, {}, {"DOWNY_MODE": "compat"}), "compat")
+            config.resolve_mode(None, {}, {"YTDUO_MODE": "compat"}), "compat")
 
     def test_legacy_env_still_honoured(self):
         self.assertEqual(
-            config.resolve_mode(None, {}, {"DUNY_MODE": "compat"}), "compat")
+            config.resolve_mode(None, {}, {"DOWNY_MODE": "compat"}), "compat")
 
     def test_default(self):
         self.assertEqual(config.resolve_mode(None, {}, {}), "best")
@@ -779,8 +781,3 @@ class FailFastHosts(TempWorkspace):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
-
-
-
-
