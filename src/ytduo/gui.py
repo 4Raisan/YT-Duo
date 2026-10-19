@@ -1156,6 +1156,38 @@ class YtDuoApp:
             self._preview_id = self.root.after(300,
                 lambda: self._queue_preview(generation, urls[0], settings))
 
+    def _queue_preview(self, generation, url, settings):
+        self._preview_id = None
+        if self._destroyed or generation != self._preview_generation:
+            return
+        self._preview_request = (generation, url, settings)
+        self._drain_preview()
+
+    def _drain_preview(self):
+        if self._destroyed or self._preview_thread is not None or not self._preview_request:
+            return
+        generation, url, settings = self._preview_request
+        self._preview_request = None
+        bridge = self.service_bridge
+
+        def work():
+            result = {"generation": generation, "url": url}
+            try:
+                if not engine.is_host_supported(url):
+                    raise engine.UnsupportedHostError("no extractor for this host")
+                result["info"] = engine.probe(url, settings)
+            except Exception as exc:
+                result["error"] = engine.classify_error(exc)
+            bridge.emit("preview_result", result)
+            bridge.emit("preview_finished", {})
+
+        self._preview_thread = threading.Thread(target=work, daemon=True)
+        self._preview_thread.start()
+
+    def _on_preview_finished(self, _result):
+        self._preview_thread = None
+        self._drain_preview()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
