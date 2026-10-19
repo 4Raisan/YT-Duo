@@ -674,7 +674,7 @@ def _record_archive(url, settings, path):
 
     Done manually rather than letting yt-dlp record it per stream, so a
     video whose merge failed is retried next run instead of being skipped
-    forever. The format is ``ytduo <url> <path>``.
+    forever. The format is ``YT-Duo <url> <path>``.
     """
     if not settings.use_archive:
         return
@@ -682,10 +682,10 @@ def _record_archive(url, settings, path):
     if url in existing and existing[url] == path:
         return
     lines = [
-        f"ytduo {u}" + (f" {p}" if p else "")
+        f"YT-Duo {u}" + (f" {p}" if p else "")
         for u, p in existing.items() if u != url
     ]
-    lines.append(f"ytduo {url} {path}")
+    lines.append(f"YT-Duo {url} {path}")
     try:
         with open(settings.archive_file, "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
@@ -712,6 +712,10 @@ def run_item(url, index, total, settings, emit=None, should_stop=None):
     info = probe(url, settings, logger)
     title = info.get("title") or info.get("id") or f"item {index}"
     formats = info.get("formats") or []
+    if settings.media_type == "audio":
+        report = run_music(url, index, title, formats, settings, emit, should_stop)
+        _record_archive(url, settings, report["path"])
+        return report
     video_fmt, audio_fmt, needs_merge = selector.pick_streams(
         formats, settings.mode, settings.max_height)
 
@@ -833,3 +837,69 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None):
     }
     emit("batch_done", summary)
     return summary
+
+
+def verify_audio_output(path, fmt, settings):
+    """Validate an audio-only output before recording it as completed."""
+    result = subprocess.run(
+        [find_ffprobe(settings), "-v", "error", "-print_format", "json",
+         "-show_format", "-show_streams", path], capture_output=True, text=True)
+    if result.returncode:
+        raise ValidationError("ffprobe could not read the audio output")
+    try:
+        data = json.loads(result.stdout)
+        streams = data.get("streams", [])
+        audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+        duration = float(data.get("format", {}).get("duration") or 0)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValidationError("invalid audio verification data") from exc
+    if not audio or any(s.get("codec_type") == "video" for s in streams) or duration <= 0:
+        raise ValidationError("output must contain audio, no video, and positive duration")
+    family = selector.codec_family(selector.acodec_of(fmt))
+    expected = "mp3" if settings.audio_format == "mp3" else FFPROBE_AUDIO_CODEC.get(family, family)
+    if expected and audio.get("codec_name") != expected:
+        raise ValidationError(f"audio codec {audio.get('codec_name')} != {expected}")
+    bitrate = int(audio.get("bit_rate") or 0)
+    if settings.audio_format == "mp3" and settings.audio_bitrate:
+        expected_bitrate = settings.audio_bitrate * 1000
+        if abs(bitrate - expected_bitrate) > expected_bitrate * 0.02:
+            raise ValidationError("MP3 output bitrate does not match the selected quality")
+    return {"resolution": "Audio", "fps": 0, "video_codec": None,
+            "audio_codec": audio.get("codec_name"), "audio_streams": 1,
+            "duration": round(duration, 1), "media_type": "audio", "path": path,
+            "audio_bitrate": bitrate}
+
+
+def run_music(url, index, title, formats, settings, emit, should_stop=None):
+    fmt = selector.pick_music(formats, settings.mode)
+    emit("probe", {"index": index, "title": title, "video": "Music / audio only",
+                   "audio": selector.describe(fmt, True)})
+    source, _ = fetch_stream(url, fmt, os.path.join(settings.audio_dir,
+                             "%(id)s_audio.%(ext)s"), "Audio", settings,
+                             index, emit, should_stop)
+    family = selector.codec_family(selector.acodec_of(fmt))
+    extension = {
+        "mp4a": "m4a", "opus": "opus", "vorbis": "ogg", "mp3": "mp3",
+        "flac": "flac"}.get(family, "mka")
+    os.makedirs(settings.media_output_dir, exist_ok=True)
+    output = build_output_path(settings.media_output_dir, index, title, extension)
+    # Reserve our own output atomically; cleanup must never delete another run's file.
+    with open(output, "xb"):
+        pass
+    encoding = ["-c:a", "copy"]
+    try:
+        if should_stop and should_stop():
+            raise Cancelled()
+        result = subprocess.run([find_ffmpeg(settings), "-y", "-loglevel", "error",
+            "-i", source, "-map", "0:a:0", "-vn"] + encoding + [output],
+            capture_output=True, text=True)
+        if result.returncode or not os.path.isfile(output):
+            raise MergeError((result.stderr or "audio extraction failed").strip()[-300:])
+        report = verify_audio_output(output, fmt, settings)
+    except Exception:
+        if os.path.isfile(output):
+            os.remove(output)
+        raise
+    recycle(source, settings)
+    emit("merged", {"index": index, "report": report})
+    return report

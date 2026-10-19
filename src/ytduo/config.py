@@ -121,7 +121,10 @@ class Settings:
         "already downloaded *here*". A single shared archive would make a
         changed output directory skip everything silently.
         """
-        return os.path.join(self.output_dir, ".ytduo-archive.txt")
+        suffix = "" if self.media_type == "video" else f"-audio-{self.audio_format}"
+        if self.media_type == "audio" and self.audio_bitrate:
+            suffix += f"-{self.audio_bitrate}k"
+        return os.path.join(self.output_dir, f".YT-Duo{suffix}-archive.txt")
 
     @property
     def work_dirs(self):

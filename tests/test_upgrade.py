@@ -55,3 +55,22 @@ class MusicPipeline(unittest.TestCase):
         for field in ({"has_drm": True}, {"format_note": "DRC"}):
             with self.assertRaises(selector.NoSuitableFormat):
                 selector.pick_music([dict(FORMATS[2], **field)])
+
+    def test_archives_separate_video_original_and_mp3(self):
+        paths = {self.settings.archive_file,
+                 self.settings.replace(media_type="video").archive_file,
+                 self.settings.replace(audio_format="mp3").archive_file}
+        self.assertEqual(len(paths), 3)
+        self.assertNotEqual(self.settings.replace(audio_format="mp3", audio_bitrate=192).archive_file,
+                            self.settings.replace(audio_format="mp3", audio_bitrate=320).archive_file)
+
+    def test_audio_success_does_not_archive_video(self):
+        output = Path(self.settings.output_dir) / "music.opus"
+        output.write_bytes(b"verified")
+        with mock.patch.object(engine, "is_host_supported", return_value=True), \
+             mock.patch.object(engine, "probe", return_value=INFO), \
+             mock.patch.object(engine, "run_music", return_value={"path": str(output)}):
+            engine.run_item("https://example.com/watch", 1, 1, self.settings)
+        self.assertTrue(engine.already_downloaded("https://example.com/watch", self.settings))
+        self.assertFalse(engine.already_downloaded("https://example.com/watch",
+                         self.settings.replace(media_type="video")))
