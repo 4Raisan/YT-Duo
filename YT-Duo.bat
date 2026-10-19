@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul 2>&1
-title DownY
+title YT-Duo
 echo.
-echo   DownY - Initializing
+echo   YT-Duo - Initializing
 echo   ====================
 echo.
 
@@ -22,6 +22,10 @@ exit /b 0
 :main
 
 cd /d "%~dp0"
+
+:: The package lives in src/, so put it on the path for this session only.
+set "PYTHONPATH=%~dp0src;%PYTHONPATH%"
+set "YTDUO_HOME=%~dp0"
 
 :: --no-pause makes the launcher scriptable: it never waits for a keypress.
 :: It is stripped from the arguments so it cannot leak into the app's CLI.
@@ -142,7 +146,7 @@ if "%NEED_RESTART%"=="1" (
     echo.
     echo   ==========================================
     echo    New software was installed.
-    echo    Close this window and run runner.bat again
+    echo    Close this window and run YT-Duo.bat again
     echo    so PATH changes take effect.
     echo   ==========================================
     echo.
@@ -192,16 +196,16 @@ echo.
 echo   All ready!
 echo.
 echo   Opening the window. For the terminal version run:
-echo       runner.bat cli
+echo       YT-Duo.bat cli
 echo.
 timeout /t 2 /nobreak >nul
 cls
-%PY% -m downy --gui
+%PY% -m ytduo --gui
 set "EXITCODE=!errorlevel!"
 goto :done
 
 :run_cli
-%PY% -m downy!ARGS!
+%PY% -m ytduo!ARGS!
 set "EXITCODE=!errorlevel!"
 
 :done
