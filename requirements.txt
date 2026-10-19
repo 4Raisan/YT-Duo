@@ -1,0 +1,9 @@
+# DownY runtime dependencies.
+#
+# yt-dlp is deliberately floor-pinned rather than ceiling-pinned: it ships
+# extractor fixes constantly, and an old yt-dlp is a broken yt-dlp. Pin an
+# exact version only if a specific release breaks us.
+#
+# ffmpeg/ffprobe are external binaries (see runner.bat), not pip packages.
+
+yt-dlp>=2026.8.19
