@@ -1203,6 +1203,26 @@ class YtDuoApp:
         self._autosize()
         self._maybe_auto_download()
 
+    def _refresh_preview_feedback(self):
+        if not hasattr(self, "quality_feedback"):
+            return
+        if self._preview_info is None:
+            self._set_link_status(self._link_status_text, self._link_status_color)
+            return
+        formats = self._preview_info.get("formats") or []
+        try:
+            if self.media_var.get() == "audio":
+                selector.pick_music(formats, "best")
+            else:
+                heights = selector.available_heights(formats, self.mode_var.get())
+                for chip in self.chips:
+                    # Best is automatic, not a particular offered resolution.
+                    chip.set_available(None if chip.value is None else chip.value in heights)
+                selector.pick_streams(formats, self.mode_var.get(), self._selected_height())
+            self._set_link_status("Ready to download", "success")
+        except (selector.NoSuitableFormat, ValueError):
+            self._set_link_status("No playable media", "danger")
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""

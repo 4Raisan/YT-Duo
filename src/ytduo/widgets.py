@@ -318,6 +318,12 @@ class Chip(Animated, tk.Canvas):
         color = p["accent"] if self._selected else p["text_dim"]
         self.create_text(w / 2, h / 2, text=self.text, fill=color, font=self._font)
 
+    def set_available(self, available):
+        """None = unchecked, True = offered, False = not offered."""
+        self._available = available
+        self._current_color = self._rest_color()
+        self.repaint()
+
 
 class ProgressBar(tk.Canvas):
     """Smoothly animated rounded progress bar.
