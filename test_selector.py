@@ -10,8 +10,8 @@ import os
 import re
 import unittest
 
-from downy import selector
-from downy.selector import NoSuitableFormat
+from ytduo import selector
+from ytduo.selector import NoSuitableFormat
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(HERE, "fixtures", "formats.json")
@@ -488,7 +488,7 @@ class HDRBehaviour(unittest.TestCase):
 
 class NoHardcodedFormatIds(unittest.TestCase):
     def test_selector_source_contains_no_itag_literals(self):
-        path = os.path.join(HERE, "downy", "selector.py")
+        path = os.path.join(HERE, "ytduo", "selector.py")
         with open(path, encoding="utf-8") as fh:
             source = fh.read()
         source = re.sub(r'"""[\s\S]*?"""', "", source)

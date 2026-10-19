@@ -3,14 +3,14 @@
 Why this looks the way it does: tkinter's ttk widgets delegate to Windows
 Visual Styles and ignore colour, so a stock ttk window always looks like a
 system dialog. Every interactive control here is drawn on a ``tk.Canvas``
-(see ``downy.widgets``) which buys real colour, rounded corners, hover
+(see ``ytduo.widgets``) which buys real colour, rounded corners, hover
 easing and an animated progress bar.
 
 The module is still a thin shell: it gathers a ``Settings``, runs
 ``engine.run_batch`` on a worker thread and renders the events. All policy
 lives in the engine.
 
-    python -m downy --gui
+    python -m ytduo --gui
 """
 
 import os
@@ -48,7 +48,7 @@ LABEL_TO_MODE = {label: key for key, label, _help in MODE_CHOICES}
 MODE_TO_LABEL = {key: label for key, label, _help in MODE_CHOICES}
 
 
-class DownyApp:
+class YtDuoApp:
     def __init__(self, root):
         self.root = root
         self.bridge = EventBridge()
@@ -99,7 +99,7 @@ class DownyApp:
     # ── construction ─────────────────────────────────────────────────
 
     def _build_ui(self):
-        self.root.title(f"DownY {__version__}")
+        self.root.title(f"YT-Duo {__version__}")
         self.root.geometry("640x280")
         self.root.minsize(600, 260)
         self.root.configure(bg=self.palette["bg"])
@@ -199,7 +199,7 @@ class DownyApp:
 
         left = tk.Frame(row, bg=self.palette["bg"])
         left.pack(side="left")
-        self.title_label = self._label(left, "DownY", "hero")
+        self.title_label = self._label(left, "YT-Duo", "hero")
         self.title_label.pack(anchor="w")
         self.subtitle = self._label(
             left, "Paste a link, choose a quality, press Enter.",
@@ -861,7 +861,7 @@ class DownyApp:
     def _preflight(self, settings):
         if not engine.find_ffmpeg(settings) or not engine.find_ffprobe(settings):
             messagebox.showerror(
-                "DownY", "ffmpeg/ffprobe not found.\n"
+                "YT-Duo", "ffmpeg/ffprobe not found.\n"
                          "Run runner.bat to install the dependencies.")
             return False
         return True
@@ -869,7 +869,7 @@ class DownyApp:
     def download_single(self):
         urls = engine_split_urls(self.url_var.get())
         if not urls:
-            messagebox.showinfo("DownY", "Paste a video link first.")
+            messagebox.showinfo("YT-Duo", "Paste a video link first.")
             return
 
         # A run is already going: queue these instead of refusing them, so
@@ -895,7 +895,7 @@ class DownyApp:
     def start_queue(self):
         urls = self.queue_items()
         if not urls:
-            messagebox.showinfo("DownY", "The queue is empty.")
+            messagebox.showinfo("YT-Duo", "The queue is empty.")
             return
         self._start(urls)
 
@@ -1071,7 +1071,7 @@ class DownyApp:
         reason = engine.classify_error(exc) if exc else "unknown error"
         self.status_label.flash(f"Stopped — {reason}", "danger")
         self.append_log(f"Stopped: {reason}", "error")
-        messagebox.showerror("DownY", f"The run stopped:\n\n{reason}")
+        messagebox.showerror("YT-Duo", f"The run stopped:\n\n{reason}")
 
     def _finish(self):
         self._set_running(False)
@@ -1083,7 +1083,7 @@ class DownyApp:
 
     def on_close(self):
         if self.worker and self.worker.is_alive():
-            if not messagebox.askyesno("DownY",
+            if not messagebox.askyesno("YT-Duo",
                                        "A download is running. Quit anyway?"):
                 return
             self.bridge.request_cancel()
@@ -1099,7 +1099,7 @@ def engine_split_urls(text):
 
 def main():
     root = tk.Tk()
-    DownyApp(root)
+    YtDuoApp(root)
     root.mainloop()
     return 0
 

@@ -12,7 +12,7 @@ import tkinter as tk
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from downy.gui import DownyApp  # noqa: E402
+from ytduo.gui import YtDuoApp  # noqa: E402
 from tools.capture import capture  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +21,7 @@ DOCS = os.path.join(HERE, "docs")
 
 def make_app(theme="dark"):
     root = tk.Tk()
-    app = DownyApp(root)
+    app = YtDuoApp(root)
     app.apply_theme(theme)
     # Do not pin the geometry: the app sizes itself to its visible panels,
     # and a fixed size would clip the Cancel row during a run.

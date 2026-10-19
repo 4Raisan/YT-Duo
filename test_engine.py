@@ -17,9 +17,9 @@ import unittest
 import uuid
 from unittest import mock
 
-from downy import config, engine, naming, selector
-from downy.config import Settings
-from downy.cli import read_queue
+from ytduo import config, engine, naming, selector
+from ytduo.config import Settings
+from ytduo.cli import read_queue
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -385,7 +385,7 @@ class SettingsPaths(TempWorkspace):
             env["PYTHONPATH"] = HERE
             probe = subprocess.run(
                 [sys.executable, "-c",
-                 "import downy.engine, downy.cli, downy.config"],
+                 "import ytduo.engine, ytduo.cli, ytduo.config"],
                 capture_output=True, text=True, cwd=empty, env=env,
             )
             self.assertEqual(probe.returncode, 0, probe.stderr)

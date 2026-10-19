@@ -12,8 +12,8 @@ import argparse
 import os
 import sys
 
-from downy import engine, selector
-from downy.config import Settings
+from ytduo import engine, selector
+from ytduo.config import Settings
 
 
 TEST_URLS = [
@@ -61,7 +61,7 @@ def run(url, index, settings):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DownY live smoke test")
+    parser = argparse.ArgumentParser(description="YT-Duo live smoke test")
     parser.add_argument("-m", "--mode", default="best", choices=sorted(selector.MODES))
     parser.add_argument("urls", nargs="*", default=None)
     args = parser.parse_args()

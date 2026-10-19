@@ -38,7 +38,7 @@ DEFAULT_RECYCLE_MAX_BYTES = 4 * 1024**3
 
 
 def project_root():
-    """The folder containing the ``downy`` package, resolved absolutely."""
+    """The folder containing the ``ytduo`` package, resolved absolutely."""
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.dirname(here)
 
@@ -107,7 +107,7 @@ class Settings:
         "already downloaded *here*". A single shared archive would make a
         changed output directory skip everything silently.
         """
-        return os.path.join(self.output_dir, ".downy-archive.txt")
+        return os.path.join(self.output_dir, ".ytduo-archive.txt")
 
     @property
     def work_dirs(self):

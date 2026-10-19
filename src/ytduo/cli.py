@@ -4,7 +4,7 @@ Everything user-facing lives here: argument parsing, console rendering,
 prompts, and the exit code. The engine below it knows nothing about any
 of that, which is what lets a GUI or web front-end reuse the same core.
 
-Run ``python -m downy --help`` for usage.
+Run ``python -m ytduo --help`` for usage.
 """
 
 import argparse
@@ -47,16 +47,16 @@ class ModeAction(argparse.Action):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="downy",
-        description="DownY - batch video downloader.",
+        prog="ytduo",
+        description="YT-Duo - batch video downloader.",
         epilog=(
             "examples:\n"
-            "  python -m downy                      # read links.txt\n"
-            "  python -m downy --mode compat        # H.264/AAC in MP4\n"
-            "  python -m downy -m efficient         # smaller AV1 encodes\n"
-            "  python -m downy https://youtu.be/ID  # one URL, no queue file\n"
-            "  python -m downy --dry-run            # preview, download nothing\n"
-            "  python -m downy --list-formats URL   # inspect available streams\n"
+            "  python -m ytduo                      # read links.txt\n"
+            "  python -m ytduo --mode compat        # H.264/AAC in MP4\n"
+            "  python -m ytduo -m efficient         # smaller AV1 encodes\n"
+            "  python -m ytduo https://youtu.be/ID  # one URL, no queue file\n"
+            "  python -m ytduo --dry-run            # preview, download nothing\n"
+            "  python -m ytduo --list-formats URL   # inspect available streams\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -110,7 +110,7 @@ def build_parser():
         help="only print errors and the final summary")
     parser.add_argument(
         "-V", "--version", action="version",
-        version=f"DownY {__version__}")
+        version=f"YT-Duo {__version__}")
     return parser
 
 
@@ -361,7 +361,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         pause()
         return 1
 
-    out.write("\n  DownY v" + __version__ + " - Downloading\n")
+    out.write("\n  YT-Duo v" + __version__ + " - Downloading\n")
     out.write("  ============================\n\n")
     out.write(f"  Mode: {mode}   Links: {len(urls)}\n\n")
 

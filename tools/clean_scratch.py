@@ -15,7 +15,7 @@ import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-PATTERNS = ("downy-test-*", "tmp-*", "tmpwj*", "_guitest-*", "_test-*",
+PATTERNS = ("ytduo-test-*", "tmp-*", "tmpwj*", "_guitest-*", "_test-*",
             "_live-*", "_lv-*", "_arch_test", "_scratch*")
 
 

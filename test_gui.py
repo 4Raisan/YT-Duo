@@ -1,6 +1,6 @@
 """GUI tests.
 
-These drive the real ``DownyApp`` against the real engine. Network and
+These drive the real ``YtDuoApp`` against the real engine. Network and
 ffmpeg are stubbed at the engine boundary, so the event flow, threading,
 progress rendering, cancellation and error handling are all exercised
 genuinely -- only the download itself is faked.
@@ -23,8 +23,8 @@ try:
 except ImportError:  # pragma: no cover
     HAVE_TK = False
 
-from downy import config, engine
-from downy.config import Settings
+from ytduo import config, engine
+from ytduo.config import Settings
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -79,8 +79,8 @@ class GuiTestCase(unittest.TestCase):
         except tk.TclError as exc:  # pragma: no cover
             self.skipTest(f"no display: {exc}")
 
-        from downy.gui import DownyApp
-        self.app = DownyApp(self.tk)
+        from ytduo.gui import YtDuoApp
+        self.app = YtDuoApp(self.tk)
         # Isolate every run inside the temp workspace.
         self.app.output_var.set(self.root)
         self.app.saved = {}
@@ -163,7 +163,7 @@ class CompactLayout(GuiTestCase):
     def test_multiple_links_route_to_the_queue_instead_of_erroring(self):
         self.app.url_var.set("https://a.com/1 https://a.com/2")
         with mock.patch.object(engine, "run_item", return_value={"path": "x"}), \
-             mock.patch("downy.gui.messagebox.showinfo") as info:
+             mock.patch("ytduo.gui.messagebox.showinfo") as info:
             self.app.download_single()
             pump_until(self.tk, lambda: self.app.worker is None)
         self.assertFalse(info.called, "should queue, not warn")
@@ -178,7 +178,7 @@ class ModePicker(GuiTestCase):
     """The Format dropdown shows friendly labels but stores real modes."""
 
     def test_selecting_a_label_sets_the_mode(self):
-        from downy.gui import MODE_LABELS, LABEL_TO_MODE
+        from ytduo.gui import MODE_LABELS, LABEL_TO_MODE
         index = MODE_LABELS.index("Most compatible")
         self.app._on_mode(LABEL_TO_MODE["Most compatible"])
         self.assertEqual(self.app.mode_var.get(), LABEL_TO_MODE["Most compatible"])
@@ -191,12 +191,12 @@ class ModePicker(GuiTestCase):
 
     def test_saved_mode_restores_the_label(self):
         """A saved config drives both the mode var and its friendly label."""
-        from downy import gui
+        from ytduo import gui
 
         original = gui.read_config_file
         gui.read_config_file = lambda _path: {"mode": "compat"}
         try:
-            other = gui.DownyApp(tk.Toplevel(self.tk))
+            other = gui.YtDuoApp(tk.Toplevel(self.tk))
         finally:
             gui.read_config_file = original
         try:
@@ -223,21 +223,21 @@ class Theming(GuiTestCase):
         self.assertEqual(self.app.theme_name, "dark")
 
     def test_root_background_follows_theme(self):
-        from downy import theme
+        from ytduo import theme
         self.app.apply_theme("light")
         self.assertEqual(self.tk.cget("bg"), theme.LIGHT["bg"])
         self.app.apply_theme("dark")
         self.assertEqual(self.tk.cget("bg"), theme.DARK["bg"])
 
     def test_themed_widgets_pick_up_new_palette(self):
-        from downy import theme
+        from ytduo import theme
         self.app.apply_theme("light")
         self.assertEqual(self.app.single_button.palette, theme.LIGHT)
         for chip in self.app.chips:
             self.assertEqual(chip.palette, theme.LIGHT)
 
     def test_title_stays_readable_after_swap(self):
-        from downy import theme
+        from ytduo import theme
         for name in ("light", "dark"):
             with self.subTest(name=name):
                 self.app.apply_theme(name)
@@ -257,25 +257,25 @@ class Animations(unittest.TestCase):
     """The easing primitives behind hover and progress effects."""
 
     def test_ease_out_cubic_is_bounded_and_monotonic(self):
-        from downy import theme
+        from ytduo import theme
         values = [theme.ease_out_cubic(i / 10) for i in range(11)]
         self.assertEqual(values[0], 0)
         self.assertAlmostEqual(values[-1], 1)
         self.assertEqual(values, sorted(values))
 
     def test_lerp_color_endpoints(self):
-        from downy import theme
+        from ytduo import theme
         self.assertEqual(theme.lerp_color("#000000", "#ffffff", 0), "#000000")
         self.assertEqual(theme.lerp_color("#000000", "#ffffff", 1), "#ffffff")
 
     def test_lerp_color_midpoint(self):
-        from downy import theme
+        from ytduo import theme
         mid = theme.lerp_color("#000000", "#ffffff", 0.5)
         r, g, b = (int(mid[i:i + 2], 16) for i in (1, 3, 5))
         self.assertEqual((r, g, b), (128, 128, 128))
 
     def test_mix_alpha_is_clamped(self):
-        from downy import theme
+        from ytduo import theme
         self.assertEqual(theme.mix_alpha("#ffffff", "#000000", 5), "#ffffff")
 
 
@@ -283,7 +283,7 @@ class WidgetBehaviour(GuiTestCase):
     """Canvas widgets respond to their own interaction paths."""
 
     def test_button_click_invokes_command(self):
-        from downy import widgets
+        from ytduo import widgets
         calls = []
         btn = widgets.Button(self.tk, "Go", lambda: calls.append(1),
                              self.app.palette, self.app.fonts)
@@ -292,7 +292,7 @@ class WidgetBehaviour(GuiTestCase):
         self.assertEqual(calls, [1])
 
     def test_disabled_button_ignores_click(self):
-        from downy import widgets
+        from ytduo import widgets
         calls = []
         btn = widgets.Button(self.tk, "Go", lambda: calls.append(1),
                              self.app.palette, self.app.fonts)
@@ -310,7 +310,7 @@ class WidgetBehaviour(GuiTestCase):
         self.assertEqual(self.app._selected_height(), 720)
 
     def test_progress_bar_clamps_and_eases(self):
-        from downy import widgets
+        from ytduo import widgets
         bar = widgets.ProgressBar(self.tk, self.app.palette)
         bar.set(150, immediate=True)
         self.assertEqual(bar._target, 100)
@@ -319,7 +319,7 @@ class WidgetBehaviour(GuiTestCase):
         bar.stop()
 
     def test_progress_indeterminate_toggles(self):
-        from downy import widgets
+        from ytduo import widgets
         bar = widgets.ProgressBar(self.tk, self.app.palette)
         bar.set_indeterminate(True)
         self.assertTrue(bar._indeterminate)
@@ -392,15 +392,15 @@ class SaveDestination(GuiTestCase):
         self.assertTrue(shown.endswith("elsewhere"), shown)
 
     def test_long_paths_are_middle_truncated(self):
-        from downy.gui import DownyApp
+        from ytduo.gui import YtDuoApp
         long_path = "C:\\" + "\\".join(["averylongfoldername"] * 6)
-        shown = DownyApp._short_path(long_path)
+        shown = YtDuoApp._short_path(long_path)
         self.assertLessEqual(len(shown), 44)
         self.assertIn("\u2026", shown)
 
     def test_short_path_is_untouched(self):
-        from downy.gui import DownyApp
-        self.assertEqual(DownyApp._short_path("downloads"), "downloads")
+        from ytduo.gui import YtDuoApp
+        self.assertEqual(YtDuoApp._short_path("downloads"), "downloads")
 
     def test_window_width_is_narrower(self):
         self.assertLessEqual(self.tk.winfo_width(), 660)
@@ -413,12 +413,12 @@ class WindowConstruction(GuiTestCase):
         self.assertEqual(self.app.status_label.cget("text"), "Ready.")
 
     def test_quality_choices_map_to_heights(self):
-        from downy.gui import QUALITY_CHOICES
+        from ytduo.gui import QUALITY_CHOICES
         self.assertIsNone(QUALITY_CHOICES[0][1])
         self.assertIn(720, [h for _, h in QUALITY_CHOICES])
 
     def test_selected_quality_reaches_settings(self):
-        from downy.gui import QUALITY_CHOICES
+        from ytduo.gui import QUALITY_CHOICES
         index = next(i for i, (_, h) in enumerate(QUALITY_CHOICES) if h == 720)
         self.app._on_quality(QUALITY_CHOICES[index][1])
         self.assertEqual(self.app._make_settings().max_height, 720)
@@ -554,7 +554,7 @@ class FailureHandling(GuiTestCase):
     def test_worker_error_shows_dialog(self):
         with mock.patch.object(engine, "run_batch",
                                side_effect=RuntimeError("boom")), \
-             mock.patch("downy.gui.messagebox.showerror") as error_box:
+             mock.patch("ytduo.gui.messagebox.showerror") as error_box:
             self.app.url_var.set("https://youtube.com/watch?v=abc")
             self.app.download_single()
             done = pump_until(self.tk, lambda: self.app.worker is None)
@@ -578,7 +578,7 @@ class FailureHandling(GuiTestCase):
 
     def test_missing_ffmpeg_blocks_start(self):
         with mock.patch.object(engine, "find_ffmpeg", return_value=None), \
-             mock.patch("downy.gui.messagebox.showerror") as error_box:
+             mock.patch("ytduo.gui.messagebox.showerror") as error_box:
             self.app.url_var.set("https://youtube.com/watch?v=abc")
             self.app.download_single()
 
@@ -586,7 +586,7 @@ class FailureHandling(GuiTestCase):
         self.assertIsNone(self.app.worker)
 
     def test_empty_input_does_not_start(self):
-        with mock.patch("downy.gui.messagebox.showinfo") as info:
+        with mock.patch("ytduo.gui.messagebox.showinfo") as info:
             self.app.download_single()
         self.assertTrue(info.called)
         self.assertIsNone(self.app.worker)
@@ -656,7 +656,7 @@ class Cancellation(GuiTestCase):
 
 class EventBridgeBehaviour(unittest.TestCase):
     def test_pump_delivers_in_order(self):
-        from downy.gui_worker import EventBridge
+        from ytduo.gui_worker import EventBridge
         bridge = EventBridge()
         bridge.emit("a", {"n": 1})
         bridge.emit("b", {"n": 2})
@@ -665,7 +665,7 @@ class EventBridgeBehaviour(unittest.TestCase):
         self.assertEqual(seen, [("a", 1), ("b", 2)])
 
     def test_pump_survives_a_failing_handler(self):
-        from downy.gui_worker import EventBridge
+        from ytduo.gui_worker import EventBridge
         bridge = EventBridge()
         bridge.emit("a", {})
         bridge.emit("b", {})
@@ -679,7 +679,7 @@ class EventBridgeBehaviour(unittest.TestCase):
         self.assertEqual(seen, ["a", "b"])
 
     def test_reset_clears_cancel_and_queue(self):
-        from downy.gui_worker import EventBridge
+        from ytduo.gui_worker import EventBridge
         bridge = EventBridge()
         bridge.request_cancel()
         bridge.emit("a", {})
@@ -690,7 +690,7 @@ class EventBridgeBehaviour(unittest.TestCase):
         self.assertEqual(seen, [])
 
     def test_worker_reports_cancelled(self):
-        from downy.gui_worker import Cancelled, EventBridge, Worker
+        from ytduo.gui_worker import Cancelled, EventBridge, Worker
         bridge = EventBridge()
         worker = Worker(lambda: (_ for _ in ()).throw(Cancelled()), bridge)
         worker.start()
@@ -722,14 +722,14 @@ class SettingsPersistence(GuiTestCase):
 
 class UrlExtraction(unittest.TestCase):
     def test_strips_trailing_punctuation(self):
-        from downy.cli import extract_urls
+        from ytduo.cli import extract_urls
         self.assertEqual(extract_urls("See https://youtu.be/AAA."),
                          ["https://youtu.be/AAA"])
         self.assertEqual(extract_urls("(https://youtu.be/AAA)"),
                          ["https://youtu.be/AAA"])
 
     def test_ignores_non_urls(self):
-        from downy.cli import extract_urls
+        from ytduo.cli import extract_urls
         self.assertEqual(extract_urls("just notes, no links"), [])
 
 

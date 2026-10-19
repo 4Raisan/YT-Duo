@@ -674,7 +674,7 @@ def _record_archive(url, settings, path):
 
     Done manually rather than letting yt-dlp record it per stream, so a
     video whose merge failed is retried next run instead of being skipped
-    forever. The format is ``downy <url> <path>``.
+    forever. The format is ``ytduo <url> <path>``.
     """
     if not settings.use_archive:
         return
@@ -682,10 +682,10 @@ def _record_archive(url, settings, path):
     if url in existing and existing[url] == path:
         return
     lines = [
-        f"downy {u}" + (f" {p}" if p else "")
+        f"ytduo {u}" + (f" {p}" if p else "")
         for u, p in existing.items() if u != url
     ]
-    lines.append(f"downy {url} {path}")
+    lines.append(f"ytduo {url} {path}")
     try:
         with open(settings.archive_file, "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
