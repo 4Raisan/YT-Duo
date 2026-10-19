@@ -44,3 +44,14 @@ class MusicPipeline(unittest.TestCase):
     def test_default_remains_video_and_copies_keep_audio_settings(self):
         self.assertEqual(Settings().media_type, "video")
         self.assertEqual(self.settings.replace(audio_format="mp3").media_type, "audio")
+
+    def test_muxed_fallback_and_no_silent_video_only_music(self):
+        muxed = dict(FORMATS[0], acodec="mp4a.40.2", abr=128)
+        self.assertEqual(selector.pick_music([muxed]), muxed)
+        with self.assertRaises(selector.NoSuitableFormat):
+            selector.pick_music([FORMATS[0]])
+
+    def test_no_drm_or_drc_music(self):
+        for field in ({"has_drm": True}, {"format_note": "DRC"}):
+            with self.assertRaises(selector.NoSuitableFormat):
+                selector.pick_music([dict(FORMATS[2], **field)])
