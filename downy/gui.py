@@ -15,6 +15,7 @@ lives in the engine.
 
 import os
 import sys
+import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import messagebox
@@ -53,6 +54,9 @@ class DownyApp:
         self.bridge = EventBridge()
         self.worker = None
         self.current_output = None
+        # Links pasted while a run is in flight wait here for the worker.
+        self._pending_lock = threading.Lock()
+        self._pending_links = []
 
         self._load_settings()
         self.palette = theme.PALETTES.get(self.saved.get("theme", "dark"),
@@ -96,8 +100,8 @@ class DownyApp:
 
     def _build_ui(self):
         self.root.title(f"DownY {__version__}")
-        self.root.geometry("700x280")
-        self.root.minsize(660, 260)
+        self.root.geometry("640x280")
+        self.root.minsize(600, 260)
         self.root.configure(bg=self.palette["bg"])
 
         self.shell = tk.Frame(self.root, bg=self.palette["bg"])
@@ -111,6 +115,7 @@ class DownyApp:
         self._build_header()
         self._build_input()
         self._build_quality()
+        self._build_destination()
         self._build_progress()
         self._build_advanced()
         self._build_actions()
@@ -131,6 +136,7 @@ class DownyApp:
             self.input_row,
             self.quality_row,
             self.format_row,
+            self.destination_row,
             self.progress_frame,
             self.advanced,
             self.log_frame,
@@ -148,6 +154,7 @@ class DownyApp:
             self.input_row: True,
             self.quality_row: True,
             self.format_row: True,
+            self.destination_row: True,
             self.progress_frame: getattr(self, "_progress_visible", False),
             self.advanced: getattr(self, "settings_visible", False),
             self.log_frame: getattr(self, "_log_visible", False),
@@ -168,6 +175,8 @@ class DownyApp:
             widget.pack(fill="x", padx=theme.PAD, pady=(14, 0))
         elif widget is self.format_row:
             widget.pack(fill="x", padx=theme.PAD, pady=(10, 0))
+        elif widget is self.destination_row:
+            widget.pack(fill="x", padx=theme.PAD, pady=(12, 0))
         elif widget is self.progress_frame:
             widget.pack(fill="x", padx=theme.PAD)
         elif widget is self.advanced:
@@ -301,6 +310,43 @@ class DownyApp:
         self.mode_help.pack(side="left", padx=(6, 0))
         self._update_mode_help()
 
+    def _build_destination(self):
+        """Where files land, always visible -- not buried in Options."""
+        self.output_var = tk.StringVar(
+            value=self.saved.get("output_dir") or Settings().output_dir)
+
+        row = tk.Frame(self.shell, bg=self.palette["bg"])
+        self.destination_row = row
+
+        self._label(row, "Save to", "small", "text_faint").pack(side="left",
+                                                                padx=(2, 12))
+
+        self.dest_label = self._label(row, "", "small", "text_dim")
+        self.dest_label.pack(side="left")
+
+        self.dest_open = widgets.Button(
+            row, "Open", self.open_output, self.palette, self.fonts,
+            kind="ghost", height=22, radius=6)
+        self.dest_open.pack(side="right")
+        self._refresh_destination()
+
+    def _refresh_destination(self):
+        """Show the folder name, with the full path as a tooltip."""
+        path = self.output_var.get() if hasattr(self, "output_var") else ""
+        shown = self._short_path(path)
+        self.dest_label.configure(text=shown)
+        self.dest_label._full_path = path
+
+    @staticmethod
+    def _short_path(path, keep=44):
+        """Middle-truncate a long path so it fits without widening the UI."""
+        path = path or ""
+        if len(path) <= keep:
+            return path
+        head = path[: keep // 2 - 2]
+        tail = path[-(keep // 2 - 1):]
+        return f"{head}…{tail}"
+
     def _build_progress(self):
         self.progress_frame = tk.Frame(self.shell, bg=self.palette["bg"])
 
@@ -330,12 +376,11 @@ class DownyApp:
         inner.pack(fill="x", padx=16, pady=14)
         inner.columnconfigure(1, weight=1)
 
-        self._label(inner, "Save to", "small", "text_dim", "surface").grid(
+        # The path itself is shown on the main screen; here you change it.
+        self._label(inner, "Folder", "small", "text_dim", "surface").grid(
             row=0, column=0, sticky="w")
         out_row = tk.Frame(inner, bg=self.palette["surface"])
         out_row.grid(row=0, column=1, sticky="ew", padx=(14, 0))
-        self.output_var = tk.StringVar(
-            value=self.saved.get("output_dir") or Settings().output_dir)
         self.output_entry = tk.Entry(
             out_row, textvariable=self.output_var, bd=0, highlightthickness=1,
             highlightbackground=self.palette["border"],
@@ -343,6 +388,9 @@ class DownyApp:
             bg=self.palette["surface_alt"], fg=self.palette["text"],
             insertbackground=self.palette["text"], font=self.fonts["body"])
         self.output_entry.pack(side="left", fill="x", expand=True, ipady=5)
+        # Keep the visible path in step when this field is edited by hand.
+        self.output_var.trace_add("write",
+                                  lambda *_: self._refresh_destination())
         widgets.Button(out_row, "Browse", self.choose_output, self.palette,
                        self.fonts, kind="ghost", height=30).pack(
             side="left", padx=(8, 0))
@@ -582,7 +630,7 @@ class DownyApp:
     def _autosize(self):
         try:
             self.root.update_idletasks()
-            width = max(self.root.winfo_width(), self.root.winfo_reqwidth(), 660)
+            width = max(self.root.winfo_width(), self.root.winfo_reqwidth(), 600)
             height = min(self.root.winfo_reqheight() + 4, 900)
             if (width, height) != (self.root.winfo_width(),
                                    self.root.winfo_height()):
@@ -694,7 +742,31 @@ class DownyApp:
             self.queue_list.insert("end", url)
         if urls:
             self.url_var.set("")
+            self._enqueue_for_running_job(urls)
         self._refresh_queue_ui()
+
+    def _enqueue_for_running_job(self, urls):
+        """Hand links to a live run so they download without a restart.
+
+        The worker thread owns the download loop, so the Tk thread must not
+        touch its list. A lock-protected buffer that the engine drains
+        between items keeps that hand-off safe.
+        """
+        if not (self.worker and self.worker.is_alive()):
+            return
+        with self._pending_lock:
+            self._pending_links.extend(urls)
+        self.append_log(f"{len(urls)} link(s) added to the running queue",
+                        "muted")
+
+    def _take_pending_links(self):
+        """Called from the worker thread; returns and clears buffered URLs."""
+        with self._pending_lock:
+            if not self._pending_links:
+                return []
+            taken = list(self._pending_links)
+            self._pending_links.clear()
+            return taken
 
     def remove_selected(self):
         for index in reversed(self.queue_list.curselection()):
@@ -767,8 +839,11 @@ class DownyApp:
         )
 
     def _set_running(self, running):
-        self.single_button.set_enabled(not running)
-        self.add_button.set_enabled(not running)
+        # The link box and Queue stay usable while downloading: pasting
+        # another link adds it to the live queue instead of being blocked
+        # for the whole run.
+        self.single_button.set_enabled(True)
+        self.add_button.set_enabled(True)
         self.start_button.set_enabled(not running)
         if running:
             self.cancel_button.set_enabled(True)
@@ -796,6 +871,17 @@ class DownyApp:
         if not urls:
             messagebox.showinfo("DownY", "Paste a video link first.")
             return
+
+        # A run is already going: queue these instead of refusing them, so
+        # pasting a second link mid-download Just Works.
+        if self.worker and self.worker.is_alive():
+            for url in urls:
+                self.queue_list.insert("end", url)
+            self._enqueue_for_running_job(urls)
+            self.url_var.set("")
+            self._refresh_queue_ui()
+            return
+
         if len(urls) > 1:
             for url in urls:
                 self.queue_list.insert("end", url)
@@ -838,7 +924,8 @@ class DownyApp:
             settings.ensure_dirs()
             return engine.run_batch(
                 urls, settings, emit=bridge.emit,
-                should_stop=lambda: bridge.cancelled)
+                should_stop=lambda: bridge.cancelled,
+                take_more=self._take_pending_links)
 
         self.worker = Worker(work, bridge)
         self.worker.start()
@@ -933,6 +1020,11 @@ class DownyApp:
     def _on_item_skipped(self, d):
         self.append_log(f"[{d['index']}] already downloaded — skipped", "muted")
 
+    def _on_queue_grew(self, d):
+        self.append_log(
+            f"Queued {d['added']} more link(s) — {d['total']} total in this run",
+            "info")
+
     def _on_recycle_pruned(self, d):
         self.append_log(f"Pruned {d['removed']} old file(s), freed {d['freed']}",
                         "muted")
@@ -1014,5 +1106,7 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
 
 

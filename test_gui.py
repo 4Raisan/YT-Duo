@@ -328,6 +328,84 @@ class WidgetBehaviour(GuiTestCase):
         bar.stop()
 
 
+class LiveQueue(GuiTestCase):
+    """Links added during a run must download without restarting it."""
+
+    def test_links_added_mid_run_are_downloaded(self):
+        seen = []
+
+        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+            seen.append(url)
+            time.sleep(0.2)
+            return {"path": "x"}
+
+        with mock.patch.object(engine, "run_item", side_effect=fake_run_item):
+            self.app.url_var.set("https://a.com/1")
+            self.app.download_single()
+            self.assertTrue(pump_until(self.tk, lambda: len(seen) >= 1,
+                                       timeout=5))
+
+            # The user pastes another link while the first is running.
+            self.app.url_var.set("https://a.com/2")
+            self.app.download_single()
+
+            done = pump_until(self.tk, lambda: self.app.worker is None,
+                              timeout=20)
+
+        self.assertTrue(done)
+        self.assertEqual(seen, ["https://a.com/1", "https://a.com/2"])
+
+    def test_download_button_stays_enabled_while_running(self):
+        self.app._set_running(True)
+        self.assertTrue(self.app.single_button._enabled,
+                        "links must be addable during a run")
+        self.assertTrue(self.app.add_button._enabled)
+
+    def test_add_to_queue_while_idle_does_not_buffer(self):
+        self.app.url_var.set("https://a.com/1")
+        self.app.add_to_queue()
+        self.assertEqual(self.app._take_pending_links(), [])
+
+    def test_pending_buffer_is_drained_once(self):
+        self.app.worker = mock.Mock(is_alive=lambda: True)
+        self.app._enqueue_for_running_job(["https://a.com/x"])
+        self.assertEqual(self.app._take_pending_links(), ["https://a.com/x"])
+        self.assertEqual(self.app._take_pending_links(), [])
+        self.app.worker = None
+
+
+class SaveDestination(GuiTestCase):
+    """Where files land is visible on the main screen, not just Options."""
+
+    def test_destination_is_shown(self):
+        self.assertNotEqual(self.app.dest_label.cget("text"), "")
+
+    def test_destination_row_is_packed_without_opening_options(self):
+        self.assertFalse(self.app.settings_visible)
+        self.assertEqual(self.app.destination_row.winfo_manager(), "pack")
+
+    def test_changing_output_updates_the_shown_path(self):
+        other = os.path.join(self.root, "elsewhere")
+        self.app.output_var.set(other)
+        shown = self.app.dest_label.cget("text")
+        # Long paths are middle-truncated, so match on the tail.
+        self.assertTrue(shown.endswith("elsewhere"), shown)
+
+    def test_long_paths_are_middle_truncated(self):
+        from downy.gui import DownyApp
+        long_path = "C:\\" + "\\".join(["averylongfoldername"] * 6)
+        shown = DownyApp._short_path(long_path)
+        self.assertLessEqual(len(shown), 44)
+        self.assertIn("\u2026", shown)
+
+    def test_short_path_is_untouched(self):
+        from downy.gui import DownyApp
+        self.assertEqual(DownyApp._short_path("downloads"), "downloads")
+
+    def test_window_width_is_narrower(self):
+        self.assertLessEqual(self.tk.winfo_width(), 660)
+
+
 class WindowConstruction(GuiTestCase):
     def test_defaults(self):
         self.assertEqual(self.app.chips[0].text, "Best")

@@ -63,6 +63,11 @@ to get real colour, rounded corners and animated transitions.
 - **Quality** is a row of chips (Best / 2160p … 360p). It is a ceiling, not a
   demand: asking for 720p on a 480p video downloads 480p rather than failing.
 - **Format** is plain language: Best quality / Smaller file / Most compatible.
+- **Save to** shows where files land, with **Open** to jump there. Change the
+  folder from Options.
+- **Add links at any time.** The link box stays live during a download:
+  pasting another URL queues it into the run already in progress instead of
+  waiting for that download to finish.
 - **Options** (output folder, cookies, skip-downloaded, queue) open on demand.
 - **☀ / ☾** toggles dark and light; the choice is remembered.
 - **Cancel** interrupts the current download immediately, keeping the partial

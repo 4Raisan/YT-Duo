@@ -746,50 +746,75 @@ def run_item(url, index, total, settings, emit=None, should_stop=None):
         raise
 
 
-def run_batch(urls, settings, emit=None, should_stop=None):
+def run_batch(urls, settings, emit=None, should_stop=None, take_more=None):
     """Download every URL in order. Returns a summary dict.
 
     ``should_stop`` is an optional callable polled between items *and*
     between chunks of each download, so a GUI can cancel promptly.
+
+    ``take_more`` makes the run a *live* queue: after each item it is called
+    and may return further URLs, which are downloaded before the batch ends.
+    That is what lets someone paste another link while a download is already
+    running instead of waiting for it to finish.
     """
     emit = emit or (lambda name, data: None)
     should_stop = should_stop or (lambda: False)
 
     settings.ensure_dirs()
     results = []
-    total = len(urls)
+    queue = list(urls)
+    total = len(queue)
     cancelled = False
     interrupted_index = None
+    position = 0
 
-    for position, url in enumerate(urls, 1):
+    while queue:
         if should_stop():
             cancelled = True
             break
+
+        url = queue.pop(0)
+        position += 1
+
         if already_downloaded(url, settings):
             results.append({"url": url, "ok": True, "skipped": True})
             emit("item_skipped", {"index": position, "url": url})
-            continue
-        try:
-            report = run_item(url, position, total, settings, emit, should_stop)
-            results.append({"url": url, "ok": True, "report": report})
-            emit("item_ok", {"index": position, "report": report})
-        except (KeyboardInterrupt, Cancelled):
-            emit("batch_interrupted", {"index": position})
-            cancelled = True
-            interrupted_index = position
-            break
-        except Exception as exc:
-            detail = str(exc)
-            results.append({"url": url, "ok": False, "reason": classify_error(exc),
-                            "detail": detail})
-            emit("item_failed", {
-                "index": position,
-                "reason": classify_error(exc),
-                "detail": detail,
-            })
-        finally:
-            if settings.sleep_interval and position < total:
-                time.sleep(settings.sleep_interval)
+        else:
+            try:
+                report = run_item(url, position, total, settings, emit,
+                                  should_stop)
+                results.append({"url": url, "ok": True, "report": report})
+                emit("item_ok", {"index": position, "report": report})
+            except (KeyboardInterrupt, Cancelled):
+                emit("batch_interrupted", {"index": position})
+                cancelled = True
+                interrupted_index = position
+                break
+            except Exception as exc:
+                detail = str(exc)
+                results.append({"url": url, "ok": False,
+                                "reason": classify_error(exc),
+                                "detail": detail})
+                emit("item_failed", {
+                    "index": position,
+                    "reason": classify_error(exc),
+                    "detail": detail,
+                })
+
+        # Anything queued while we were busy joins the run.
+        if take_more is not None and not should_stop():
+            try:
+                extra = list(take_more() or [])
+            except Exception:  # noqa: BLE001 - a bad callback must not stop us
+                extra = []
+            if extra:
+                queue.extend(extra)
+                total += len(extra)
+                emit("queue_grew", {"added": len(extra), "total": total,
+                                    "position": position})
+
+        if queue and settings.sleep_interval:
+            time.sleep(settings.sleep_interval)
 
     completed = sum(1 for r in results if r["ok"] and not r.get("skipped"))
     failed = sum(1 for r in results if not r["ok"])
