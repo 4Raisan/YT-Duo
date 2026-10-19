@@ -878,7 +878,7 @@ def run_music(url, index, title, formats, settings, emit, should_stop=None):
                              "%(id)s_audio.%(ext)s"), "Audio", settings,
                              index, emit, should_stop)
     family = selector.codec_family(selector.acodec_of(fmt))
-    extension = {
+    extension = "mp3" if settings.audio_format == "mp3" else {
         "mp4a": "m4a", "opus": "opus", "vorbis": "ogg", "mp3": "mp3",
         "flac": "flac"}.get(family, "mka")
     os.makedirs(settings.media_output_dir, exist_ok=True)
@@ -886,7 +886,11 @@ def run_music(url, index, title, formats, settings, emit, should_stop=None):
     # Reserve our own output atomically; cleanup must never delete another run's file.
     with open(output, "xb"):
         pass
-    encoding = ["-c:a", "copy"]
+    if settings.audio_format == "mp3":
+        quality = ["-b:a", f"{settings.audio_bitrate}k"] if settings.audio_bitrate else ["-q:a", "0"]
+        encoding = ["-c:a", "libmp3lame"] + quality
+    else:
+        encoding = ["-c:a", "copy"]
     try:
         if should_stop and should_stop():
             raise Cancelled()
