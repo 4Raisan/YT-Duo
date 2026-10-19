@@ -73,6 +73,9 @@ class Settings:
         cookie_file=None,
         require_supported_host=True,
         max_height=None,
+        media_type="video",
+        audio_format="original",
+        audio_bitrate=None,
     ):
         self.root = os.path.abspath(root or project_root())
         self.mode = mode
@@ -95,6 +98,17 @@ class Settings:
         self.cookie_file = self._abs(cookie_file) if cookie_file else None
         self.require_supported_host = require_supported_host
         self.max_height = int(max_height) if max_height else None
+        if media_type not in ("video", "audio"):
+            raise ValueError("media_type must be video or audio")
+        if audio_format not in ("original", "mp3"):
+            raise ValueError("audio_format must be original or mp3")
+        self.media_type = media_type
+        self.audio_format = audio_format
+        self.audio_bitrate = int(audio_bitrate) if audio_bitrate is not None else None
+        if self.audio_bitrate not in (None, 128, 192, 256, 320):
+            raise ValueError("audio bitrate must be 128, 192, 256, 320 or best")
+        if self.audio_bitrate and audio_format != "mp3":
+            raise ValueError("a bitrate choice requires MP3 conversion")
 
     def _abs(self, path):
         return path if os.path.isabs(path) else os.path.join(self.root, path)
@@ -142,6 +156,9 @@ class Settings:
             "cookie_file": self.cookie_file,
             "require_supported_host": self.require_supported_host,
             "max_height": self.max_height,
+            "media_type": self.media_type,
+            "audio_format": self.audio_format,
+            "audio_bitrate": self.audio_bitrate,
         }
         fields.update(changes)
         return Settings(**fields)
@@ -151,6 +168,10 @@ class Settings:
             f"Settings(root={self.root!r}, mode={self.mode!r}, "
             f"output_dir={self.output_dir!r})"
         )
+
+    @property
+    def media_output_dir(self):
+        return self.output_dir
 
 
 def read_config_file(path):

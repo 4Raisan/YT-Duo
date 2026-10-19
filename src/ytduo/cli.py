@@ -47,7 +47,7 @@ class ModeAction(argparse.Action):
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="ytduo",
+        prog="YT-Duo",
         description="YT-Duo - batch video downloader.",
         epilog=(
             "examples:\n"
@@ -111,6 +111,11 @@ def build_parser():
     parser.add_argument(
         "-V", "--version", action="version",
         version=f"YT-Duo {__version__}")
+    parser.add_argument("--audio", action="store_true", help="download music / audio only")
+    parser.add_argument("--audio-format", choices=("original", "mp3"), default="original",
+                        help="keep original audio quality or convert to MP3")
+    parser.add_argument("--audio-bitrate", type=int, choices=(128, 192, 256, 320),
+                        help="MP3 encoding bitrate in kbps (default: best variable bitrate)")
     return parser
 
 
@@ -307,6 +312,8 @@ def _print_formats(url, settings, out):
 def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.audio_bitrate and (not args.audio or args.audio_format != "mp3"):
+        parser.error("--audio-bitrate requires --audio --audio-format mp3")
 
     if args.gui:
         from .gui import main as gui_main
@@ -326,6 +333,9 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         use_archive=not args.no_archive,
         cookies_from_browser=args.cookies_from_browser,
         max_height=args.max_height,
+        media_type="audio" if args.audio else "video",
+        audio_format=args.audio_format,
+        audio_bitrate=args.audio_bitrate,
     )
 
     renderer = ConsoleRenderer(quiet=args.quiet, stream=out)
@@ -341,7 +351,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     ffprobe_path = engine.find_ffprobe(settings)
     if not ffmpeg_path or not ffprobe_path:
         out.write("  ERROR: ffmpeg/ffprobe not found.\n")
-        out.write("  Run runner.bat to install all dependencies.\n")
+        out.write("  Run YT-Duo.bat to install all dependencies.\n")
         pause()
         return 2
 
@@ -380,6 +390,11 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
                     raise engine.UnsupportedHostError(
                         f"no extractor for this host: {url}")
                 info = engine.probe(url, settings)
+                if settings.media_type == "audio":
+                    audio = selector.pick_music(info.get("formats") or [], mode)
+                    out.write(f"  [{index}] {info.get('title', url)[:60]}\n")
+                    out.write(f"       {selector.describe(audio, True)} -> {settings.audio_format}\n")
+                    continue
                 video, audio, _ = selector.pick_streams(
                     info.get("formats") or [], mode, settings.max_height)
                 container = engine._container_for_streams(video, audio)
