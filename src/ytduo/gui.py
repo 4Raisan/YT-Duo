@@ -1188,6 +1188,21 @@ class YtDuoApp:
         self._preview_thread = None
         self._drain_preview()
 
+    def _on_preview_result(self, result):
+        if self._destroyed or result["generation"] != self._preview_generation:
+            return
+        if "error" in result:
+            # A failed network probe is not proof that a URL is invalid.
+            error = result["error"].lower()
+            invalid = any(word in error for word in ("no extractor", "unsupported", "invalid", "not available", "unavailable video", "video unavailable", "removed", "private video"))
+            self._set_link_status("Invalid / unavailable" if invalid else "Could not verify",
+                                  "danger" if invalid else "text_dim")
+            return
+        self._preview_info = result["info"]
+        self._refresh_preview_feedback()
+        self._autosize()
+        self._maybe_auto_download()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
