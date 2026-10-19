@@ -1223,6 +1223,35 @@ class YtDuoApp:
         except (selector.NoSuitableFormat, ValueError):
             self._set_link_status("No playable media", "danger")
 
+    def _sync_placeholder(self):
+        self.input_canvas.itemconfigure(self._placeholder_window,
+            state="hidden" if self.url_var.get() else "normal")
+
+    def _set_scan_busy(self, busy):
+        if self._scan_active == busy:
+            return
+        self._scan_active = busy
+        if self._scan_anim_id:
+            self.root.after_cancel(self._scan_anim_id)
+            self._scan_anim_id = None
+        if busy:
+            self._scan_tick()
+
+    def _scan_tick(self):
+        self._scan_anim_id = None
+        if self._destroyed or not self._scan_active:
+            return
+        self._scan_angle = (self._scan_angle + 35) % 360
+        self._paint_input()
+        self._scan_anim_id = self.root.after(80, self._scan_tick)
+
+    def _set_link_status(self, text, color):
+        self._set_scan_busy(text == "Scanning…")
+        self._link_status_text, self._link_status_color = text, color
+        self.quality_feedback.configure(text=text, fg=self.palette[color])
+        self._sync_placeholder()
+        self._paint_input()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
