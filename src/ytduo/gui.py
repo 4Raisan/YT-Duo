@@ -1091,6 +1091,40 @@ class YtDuoApp:
         self.destroy()
         self.root.destroy()
 
+    def _on_media(self, value):
+        if self.worker and self.worker.is_alive():
+            self.append_log("Finish or cancel this batch before changing Video / Music.", "muted")
+            return
+        self.media_var.set(value)
+        self._refresh_destination()
+        for chip in self.media_chips:
+            chip.set_selected(chip.value == value)
+        self._refresh_preview_feedback()
+        self._repack()
+        self._autosize()
+
+    def _on_audio_format(self, value):
+        if self.worker and self.worker.is_alive():
+            return
+        self.audio_format_var.set(value)
+        for chip in self.audio_chips:
+            chip.set_selected(chip.value == value)
+        if value == "original":
+            self.audio_bitrate_var.set(0)
+            for chip in self.audio_quality_chips:
+                chip.set_selected(chip.value is None)
+        self._refresh_preview_feedback()
+
+    def _on_audio_quality(self, bitrate):
+        if self.worker and self.worker.is_alive():
+            return
+        if bitrate:
+            self._on_audio_format("mp3")
+        self.audio_bitrate_var.set(bitrate or 0)
+        for chip in self.audio_quality_chips:
+            chip.set_selected(chip.value == bitrate)
+        self._refresh_preview_feedback()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
