@@ -1,4 +1,0 @@
-# Copy to links.txt and replace VIDEO_ID.
-https://www.youtube.com/watch?v=VIDEO_ID
-
----end---

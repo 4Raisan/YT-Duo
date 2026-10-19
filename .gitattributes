@@ -1,6 +1,0 @@
-# Normalise line endings: the launcher must keep CRLF to run as a .bat file,
-# everything else stays LF so diffs and tests behave the same on any platform.
-* text=auto eol=lf
-*.bat text eol=crlf
-*.cmd text eol=crlf
-*.ps1 text eol=crlf
