@@ -1125,6 +1125,37 @@ class YtDuoApp:
             chip.set_selected(chip.value == bitrate)
         self._refresh_preview_feedback()
 
+    def _schedule_preview(self):
+        """Debounce edits and invalidate old results immediately."""
+        if self._destroyed:
+            return
+        self._preview_generation += 1
+        generation = self._preview_generation
+        self._preview_info = None
+        self._preview_request = None
+        if self._preview_id:
+            self.root.after_cancel(self._preview_id)
+            self._preview_id = None
+        for chip in self.chips:
+            chip.set_available(None)
+        urls = extract_urls(self.url_var.get())
+        valid = False
+        if len(urls) == 1:
+            try:
+                parsed = urlsplit(urls[0])
+                valid = parsed.scheme in ("http", "https") and bool(parsed.hostname)
+            except ValueError:
+                pass
+        if not valid:
+            self._set_link_status("Invalid link" if self.url_var.get().strip() else "Paste a link",
+                                  "danger" if self.url_var.get().strip() else "text_dim")
+            return
+        self._set_link_status("Scanning…", "text_dim")
+        if self.background_checks:
+            settings = self._make_settings().replace(socket_timeout=12, download_attempts=1)
+            self._preview_id = self.root.after(300,
+                lambda: self._queue_preview(generation, urls[0], settings))
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
