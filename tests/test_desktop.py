@@ -111,7 +111,7 @@ class NativeFolderTests(unittest.TestCase):
             shell.SHOpenFolderAndSelectItems.return_value = result
             def library(name, **kwargs):
                 return {"shell32": shell, "ole32": ole}[name]
-            with mock.patch.object(desktop.ctypes, "WinDLL", side_effect=library), \
+            with mock.patch.object(desktop.ctypes, "WinDLL", side_effect=library, create=True), \
                  mock.patch.object(desktop, "shell_environment"):
                 if result < 0:
                     with self.assertRaisesRegex(OSError, "80070005"):

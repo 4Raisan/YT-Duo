@@ -1484,7 +1484,8 @@ class YtDuoApp:
         if not engine.find_ffmpeg(settings) or not engine.find_ffprobe(settings):
             messagebox.showerror(
                 "YT-Duo", "ffmpeg/ffprobe not found.\n"
-                         "Run YT-Duo.bat to install the dependencies.")
+                         "Windows: re-download the full portable app or Setup.\n"
+                         "Source/Linux/macOS: follow the dependency steps in the download guide.")
             return False
         return True
 

@@ -12,7 +12,7 @@ import os
 import re
 import sys
 
-from . import __version__, engine, selector
+from . import __version__, engine, selector, dependencies
 from .config import Settings, read_config_file, resolve_mode
 
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
@@ -60,6 +60,8 @@ def build_parser():
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--check-dependencies", action="store_true",
+                        help="check Python, Tk, yt-dlp, JS helpers, FFmpeg, FFprobe and Deno; exit")
     parser.add_argument(
         "urls", nargs="*", metavar="URL",
         help="URLs to download (default: read from links.txt)")
@@ -315,6 +317,15 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     if args.audio_bitrate and (not args.audio or args.audio_format != "mp3"):
         parser.error("--audio-bitrate requires --audio --audio-format mp3")
 
+    if args.check_dependencies:
+        rows = dependencies.report(Settings())
+        for name, ok, detail in rows:
+            print(f"{'OK' if ok else 'MISSING'}  {name}: {detail}")
+        if not all(ok for _name, ok, _detail in rows):
+            print(dependencies.SETUP_HELP)
+            return 1
+        return 0
+
     if args.gui:
         from .gui import main as gui_main
         return gui_main()
@@ -351,7 +362,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     ffprobe_path = engine.find_ffprobe(settings)
     if not ffmpeg_path or not ffprobe_path:
         out.write("  ERROR: ffmpeg/ffprobe not found.\n")
-        out.write("  Run YT-Duo.bat to install all dependencies.\n")
+        out.write("  " + dependencies.SETUP_HELP + "\n")
         pause()
         return 2
 

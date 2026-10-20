@@ -747,9 +747,10 @@ class OptionBuilding(TempWorkspace):
         self.assertEqual(opts["socket_timeout"], 15)
 
     def test_ffmpeg_location_passed_when_known(self):
-        settings = self.settings.replace(ffmpeg_path=r"C:\tools\ffmpeg.exe")
+        tool_dir = os.path.join(os.sep, "tools")
+        settings = self.settings.replace(ffmpeg_path=os.path.join(tool_dir, "ffmpeg.exe"))
         opts = self._opts(settings)
-        self.assertEqual(opts["ffmpeg_location"], r"C:\tools")
+        self.assertEqual(opts["ffmpeg_location"], tool_dir)
 
     def test_cookies_from_browser(self):
         opts = self._opts(self.settings.replace(cookies_from_browser="chrome"))

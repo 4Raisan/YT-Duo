@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yt-duo"
-version = "4.5.1"
+version = "4.6.0"
 description = "Download YouTube videos in the best available quality."
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
-dependencies = ["yt-dlp>=2026.8.19"]
+dependencies = ["yt-dlp[default]>=2026.8.19"]
 
 [project.scripts]
 yt-duo = "ytduo.cli:main"

@@ -4,6 +4,7 @@
 # extractor fixes constantly, and an old yt-dlp is a broken yt-dlp. Pin an
 # exact version only if a specific release breaks us.
 #
-# ffmpeg/ffprobe are external binaries (see YT-Duo.bat), not pip packages.
+# Source/Unix installs need FFmpeg, FFprobe and Deno separately (see Releases/README.md).
+# Windows portable/Setup bundles them; they are not pip packages.
 
-yt-dlp>=2026.8.19
+yt-dlp[default]>=2026.8.19

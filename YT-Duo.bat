@@ -1,177 +1,96 @@
 @echo off
 chcp 65001 >nul 2>&1
-title YT-Duo
-echo.
-echo   YT-Duo - Initializing
-echo   ====================
-echo.
-
 setlocal EnableDelayedExpansion
+title YT-Duo
+cd /d "%~dp0"
+set "PYTHONPATH=%~dp0src;%PYTHONPATH%"
+set "YTDUO_HOME=%~dp0"
 set "NEED_RESTART=0"
-set "FAILED=0"
+set "ARGS="
+for %%a in (%*) do (
+    if /i "%%a"=="--no-pause" (set "NO_PAUSE=1") else (set "ARGS=!ARGS! %%a")
+)
+echo.
+echo   YT-Duo - Checking dependencies
 
-:: A single place that decides whether to hold the window open. Set
-:: NO_PAUSE=1 (or pass --no-pause) for scripted, piped or scheduled runs.
 goto :main
-
 :hold
 if defined NO_PAUSE exit /b 0
 pause
 exit /b 0
 
-:main
-
-cd /d "%~dp0"
-
-:: The package lives in src/, so put it on the path for this session only.
-set "PYTHONPATH=%~dp0src;%PYTHONPATH%"
-set "YTDUO_HOME=%~dp0"
-
-:: --no-pause makes the launcher scriptable: it never waits for a keypress.
-:: It is stripped from the arguments so it cannot leak into the app's CLI.
-set "ARGS="
-set "NO_PAUSE="
-for %%a in (%*) do (
-    if /i "%%a"=="--no-pause" (
-        set "NO_PAUSE=1"
-    ) else (
-        set "ARGS=!ARGS! %%a"
-    )
-)
-
-:: --- Check winget ---
+:winget_required
 winget --version >nul 2>&1
 if errorlevel 1 (
-    echo   [X] winget not available
-    echo       Install "App Installer" from the Microsoft Store first.
-    echo.
-    call :hold
+    echo   [X] Automatic setup needs App Installer from the Microsoft Store.
+    echo       Or follow Releases\README.md for manual installation.
     exit /b 1
 )
+exit /b 0
 
-:: --- Check Python (prefer the py launcher; the Store alias can lie) ---
+:failed
+echo   [X] Setup incomplete. Fix the error above and run again.
+call :hold
+exit /b 1
+
+:main
 set "PY="
-py -3 --version >nul 2>&1
-if not errorlevel 1 (
-    set "PY=py -3"
-    for /f "tokens=*" %%v in ('py -3 --version 2^>^&1') do echo   [OK] %%v
-) else (
-    python --version >nul 2>&1
-    if not errorlevel 1 (
-        python -c "import sys" >nul 2>&1
-        if not errorlevel 1 (
-            set "PY=python"
-            for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo   [OK] %%v
-        )
-    )
+py -3 -c "import sys; sys.exit(sys.version_info < (3,10))" >nul 2>&1
+if not errorlevel 1 set "PY=py -3"
+if not defined PY (
+    python -c "import sys; sys.exit(sys.version_info < (3,10))" >nul 2>&1
+    if not errorlevel 1 set "PY=python"
 )
 if not defined PY (
-    echo   [-] Python not found, installing...
-    winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements --silent
-    if errorlevel 1 (
-        echo   [X] Python install FAILED.
-        set "FAILED=1"
-    ) else (
-        echo   [+] Python installed
-        set "NEED_RESTART=1"
-    )
-)
-
-:: --- Check pip ---
-if defined PY (
-    %PY% -m pip --version >nul 2>&1
-    if errorlevel 1 (
-        echo   [-] pip not found, bootstrapping...
-        %PY% -m ensurepip --upgrade >nul 2>&1
-        if errorlevel 1 (
-            echo   [X] pip bootstrap FAILED.
-            set "FAILED=1"
-        ) else (
-            echo   [+] pip installed
-        )
-    ) else (
-        echo   [OK] pip
-    )
-)
-
-:: --- Check ffmpeg ---
-where ffmpeg >nul 2>&1
-if errorlevel 1 (
-    if exist "%USERPROFILE%\ffmpeg.exe" (
-        echo   [OK] ffmpeg  ^(user home^)
-    ) else if exist "%~dp0ffmpeg.exe" (
-        echo   [OK] ffmpeg  ^(project folder^)
-    ) else (
-        echo   [-] ffmpeg not found, installing...
-        winget install Gyan.FFmpeg --accept-package-agreements --accept-source-agreements --silent
-        if errorlevel 1 (
-            echo   [X] ffmpeg install FAILED. Download it from https://www.gyan.dev/ffmpeg/builds/
-            set "FAILED=1"
-        ) else (
-            echo   [+] ffmpeg installed
-            set "NEED_RESTART=1"
-        )
-    )
-) else (
-    echo   [OK] ffmpeg
-)
-
-:: --- Check deno (yt-dlp JS runtime) ---
-where deno >nul 2>&1
-if errorlevel 1 (
-    echo   [-] deno not found, installing...
-    winget install DenoLand.Deno --accept-package-agreements --accept-source-agreements --silent
-    if errorlevel 1 (
-        echo   [!] deno install failed - downloads may fail YouTube's bot check.
-    ) else (
-        echo   [+] deno installed
-        set "NEED_RESTART=1"
-    )
-) else (
-    echo   [OK] deno
-)
-
-if "%FAILED%"=="1" (
-    echo.
-    echo   ==========================================
-    echo    Setup incomplete. Fix the errors above.
-    echo   ==========================================
-    echo.
-    call :hold
-    exit /b 1
-)
-
-:: --- Restart needed? ---
-if "%NEED_RESTART%"=="1" (
-    echo.
-    echo   ==========================================
-    echo    New software was installed.
-    echo    Close this window and run YT-Duo.bat again
-    echo    so PATH changes take effect.
-    echo   ==========================================
-    echo.
+    call :winget_required
+    if errorlevel 1 goto :failed
+    winget install --id Python.Python.3.12 --exact --accept-package-agreements --accept-source-agreements --silent
+    if errorlevel 1 goto :failed
+    echo   Python installed. Close this window and run YT-Duo.bat again.
     call :hold
     exit /b 0
 )
-
-:: --- Install / update dependencies ---
-:: Only touch pip when yt-dlp is actually missing. An unconditional
-:: --upgrade blocks on a slow or offline connection, which made this
-:: launcher appear frozen for minutes at a time.
-echo.
-%PY% -c "import yt_dlp" >nul 2>&1
+%PY% -c "import tkinter" >nul 2>&1
 if errorlevel 1 (
-    echo   Installing yt-dlp...
-    %PY% -m pip install --upgrade --quiet -r "%~dp0requirements.txt" >nul 2>&1
-    if errorlevel 1 (
-        echo   [!] yt-dlp install failed ^(offline or permission^).
-        echo       The app will start but downloads will not work.
-    ) else (
-        echo   [OK] yt-dlp
-    )
-) else (
-    echo   [OK] yt-dlp
+    echo   [X] Python needs Tkinter. Repair Python with Tcl/Tk enabled.
+    goto :failed
 )
+%PY% -m pip --version >nul 2>&1
+if errorlevel 1 (
+    %PY% -m ensurepip --upgrade
+    if errorlevel 1 goto :failed
+)
+%PY% -c "import yt_dlp.version, yt_dlp_ejs; assert tuple(map(int, yt_dlp.version.__version__.split('.'))) >= (2026,8,19)" >nul 2>&1
+if errorlevel 1 (
+    echo   Installing yt-dlp and YouTube JavaScript helpers...
+    %PY% -m pip install -r "%~dp0requirements.txt"
+    if errorlevel 1 goto :failed
+)
+%PY% -c "from ytduo.engine import find_ffmpeg, find_ffprobe; assert find_ffmpeg() and find_ffprobe()" >nul 2>&1
+if errorlevel 1 (
+    call :winget_required
+    if errorlevel 1 goto :failed
+    echo   Installing FFmpeg and FFprobe...
+    winget install --id Gyan.FFmpeg --exact --accept-package-agreements --accept-source-agreements --silent
+    if errorlevel 1 goto :failed
+    set "NEED_RESTART=1"
+)
+%PY% -c "from ytduo.dependencies import find_deno; assert find_deno()" >nul 2>&1
+if errorlevel 1 (
+    call :winget_required
+    if errorlevel 1 goto :failed
+    echo   Installing Deno for YouTube challenges...
+    winget install --id DenoLand.Deno --exact --accept-package-agreements --accept-source-agreements --silent
+    if errorlevel 1 goto :failed
+    set "NEED_RESTART=1"
+)
+if "%NEED_RESTART%"=="1" (
+    echo   Tools installed. Close this window and run YT-Duo.bat again to refresh PATH.
+    call :hold
+    exit /b 0
+)
+%PY% -m ytduo --check-dependencies
+if errorlevel 1 goto :failed
 
 :: Dispatch on the cleaned argument list:
 ::   (nothing)      -> open the window

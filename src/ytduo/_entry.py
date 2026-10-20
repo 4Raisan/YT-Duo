@@ -44,6 +44,16 @@ def _report(exc_text):
 
 def main():
     try:
+        diagnostic = os.environ.get("YTDUO_SELF_TEST_REPORT")
+        if diagnostic:
+            import json
+            from pathlib import Path
+            from ytduo import __version__
+            from ytduo.dependencies import report
+            rows = report()
+            Path(diagnostic).write_text(json.dumps({"version": __version__, "dependencies": rows},
+                                                   indent=2), encoding="utf-8")
+            return 0 if all(ok for _name, ok, _detail in rows) else 1
         from ytduo.gui import main as gui_main
         return gui_main()
     except SystemExit:

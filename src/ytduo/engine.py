@@ -29,7 +29,7 @@ import time
 
 import yt_dlp
 
-from . import selector
+from . import selector, dependencies
 from .naming import build_output_path
 from .selector import NoSuitableFormat
 
@@ -82,6 +82,9 @@ def find_ffmpeg(settings=None):
     """Locate ffmpeg: explicit setting, PATH, project folder, common paths."""
     if settings is not None and settings.ffmpeg_path:
         return settings.ffmpeg_path
+    bundled = dependencies.bundled_tool("ffmpeg")
+    if bundled:
+        return bundled
     path = shutil.which("ffmpeg")
     if path:
         return path
@@ -101,6 +104,9 @@ def find_ffprobe(settings=None):
     """Locate ffprobe next to ffmpeg, or on PATH."""
     if settings is not None and settings.ffprobe_path:
         return settings.ffprobe_path
+    bundled = dependencies.bundled_tool("ffprobe")
+    if bundled:
+        return bundled
     path = shutil.which("ffprobe")
     if path:
         return path
@@ -279,6 +285,9 @@ def _base_opts(settings, logger):
     ffmpeg = find_ffmpeg(settings)
     if ffmpeg:
         opts["ffmpeg_location"] = os.path.dirname(ffmpeg)
+    deno = dependencies.find_deno()
+    if deno:
+        opts["js_runtimes"] = {"deno": {"path": deno}}
     return opts
 
 
