@@ -42,12 +42,11 @@ class MusicPipeline(unittest.TestCase):
         self.assertEqual(self.settings.replace(audio_format="mp3").media_type, "audio")
 
     def test_archives_separate_video_original_and_mp3(self):
-        paths = {self.settings.archive_file,
-                 self.settings.replace(media_type="video").archive_file,
-                 self.settings.replace(audio_format="mp3").archive_file}
-        self.assertEqual(len(paths), 3)
-        self.assertNotEqual(self.settings.replace(audio_format="mp3", audio_bitrate=192).archive_file,
-                            self.settings.replace(audio_format="mp3", audio_bitrate=320).archive_file)
+        settings = [self.settings, self.settings.replace(media_type="video"),
+                    self.settings.replace(audio_format="mp3"),
+                    self.settings.replace(audio_format="mp3", audio_bitrate=192),
+                    self.settings.replace(audio_format="mp3", audio_bitrate=320)]
+        self.assertEqual(len({engine._archive_key("url", s) for s in settings}), 5)
 
     def test_muxed_fallback_and_no_silent_video_only_music(self):
         muxed = dict(FORMATS[0], acodec="mp4a.40.2", abr=128)
@@ -152,7 +151,8 @@ class MusicPipeline(unittest.TestCase):
              mock.patch.object(engine, "probe", return_value=INFO), \
              mock.patch.object(engine, "run_music", return_value={"path": str(output)}):
             engine.run_item("https://example.com/watch", 1, 1, self.settings)
-        self.assertTrue(engine.already_downloaded("https://example.com/watch", self.settings))
+        self.assertTrue(engine.already_downloaded("https://example.com/watch", self.settings,
+                         engine._selection_identity(FORMATS, self.settings)))
         self.assertFalse(engine.already_downloaded("https://example.com/watch",
                          self.settings.replace(media_type="video")))
 
@@ -235,13 +235,13 @@ class FolderPolicy(unittest.TestCase):
         root = Path(make_workspace())
         try:
             settings = Settings(root=str(root))
-            recycle = root / "recycle/nested"
+            recycle = Path(settings.recycle_dir) / "nested"
             recycle.mkdir(parents=True)
             (recycle / "old.tmp").write_bytes(b"cache")
             kept = root / "finished.mp4"
             kept.write_bytes(b"finished")
             engine.clear_recycle(settings)
-            self.assertFalse((root / "recycle").exists())
+            self.assertFalse(Path(settings.recycle_dir).exists())
             with self.assertRaises(OSError):
                 engine.clear_recycle(settings.replace(recycle_dir=str(root)))
             self.assertEqual(kept.read_bytes(), b"finished")
@@ -367,19 +367,22 @@ class UpgradeGui(GuiTestCase):
 
     def test_duplicate_timeout_skips_without_downloading(self):
         with mock.patch.object(engine, "already_downloaded", return_value=True), \
-             mock.patch.object(engine, "run_item") as run:
+             mock.patch.object(engine, "probe", return_value=INFO), \
+             mock.patch.object(engine, "fetch_stream") as fetch:
             self.app._start(["https://youtu.be/abcdefghijk"])
             self.assertTrue(pump_until(self.tk, lambda: self.app._redownload_dialog is not None))
             self.assertIn("10s", self.app._redownload_countdown.cget("text"))
             self.assertTrue(pump_until(self.tk, lambda: self.app.worker is None, timeout=12))
-            run.assert_not_called()
+            fetch.assert_not_called()
             self.assertIsNone(self.app._redownload_dialog)
             self.assertIn("1 skipped", self.app.status_label.cget("text"))
 
     def test_duplicate_redownload_confirmation_and_stop_release_worker(self):
         for approve in (True, False):
             with mock.patch.object(engine, "already_downloaded", return_value=True), \
-                 mock.patch.object(engine, "run_item", return_value={"path": "verified"}) as run:
+                 mock.patch.object(engine, "probe", return_value=INFO), \
+                 mock.patch.object(engine, "fetch_stream", return_value=("synthetic", INFO)), \
+                 mock.patch.object(engine, "merge", return_value={"path": "verified"}) as merge:
                 self.app._start(["https://youtu.be/abcdefghijk"])
                 self.assertTrue(pump_until(self.tk, lambda: self.app._redownload_dialog is not None))
                 if approve:
@@ -387,7 +390,7 @@ class UpgradeGui(GuiTestCase):
                 else:
                     self.app.cancel()
                 self.assertTrue(pump_until(self.tk, lambda: self.app.worker is None))
-                self.assertEqual(run.call_count, int(approve))
+                self.assertEqual(merge.call_count, int(approve))
                 self.assertIsNone(self.app._redownload_dialog)
 
     def test_pause_resume_and_stop_do_not_block_tk(self):

@@ -19,6 +19,7 @@ Events emitted per item:
 """
 
 import glob
+import hashlib
 import json
 import os
 import re
@@ -26,6 +27,8 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
+from urllib.parse import urlsplit, parse_qs
 
 import yt_dlp
 
@@ -597,7 +600,7 @@ def _container_for_streams(video_fmt, audio_fmt):
     MP4 containing Opus audio -- technically legal, widely unsupported.
     """
     vcodec = selector.codec_family(selector.vcodec_of(video_fmt))
-    acodec = selector.codec_family(selector.acodec_of(audio_fmt)) if audio_fmt else None
+    acodec = selector.codec_family(selector.acodec_of(audio_fmt or video_fmt)) or None
 
     mp4_video = vcodec in ("avc1", "h264", "av01", "vp9")
     mp4_audio = acodec in (None, "mp4a", "aac")
@@ -613,7 +616,8 @@ def merge(index, title, video_file, audio_file, video_fmt, audio_fmt,
     emit = emit or (lambda name, data: None)
 
     container = extension or _container_for_streams(video_fmt, audio_fmt)
-    out = build_output_path(settings.output_dir, index, title, container)
+    out = build_output_path(settings.output_dir, index, title, container,
+                            numbered=bool(settings.numbered))
 
     if os.path.exists(out):
         raise MergeError(f"refusing to overwrite {os.path.basename(out)}")
@@ -681,7 +685,50 @@ def _archive_entries(settings):
     return entries
 
 
-def already_downloaded(url, settings):
+def _archive_key(url, settings, selection=None):
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    video_id = None
+    if host == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0]
+    elif host in ("youtube.com", "m.youtube.com", "music.youtube.com"):
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+        if not video_id and parsed.path.startswith(("/shorts/", "/live/", "/embed/")):
+            video_id = parsed.path.split("/")[2]
+    source = "youtube:" + video_id if video_id else url
+    variant = selection if selection is not None else {
+        "mode": settings.mode, "max_height": settings.max_height,
+        "audio_format": settings.audio_format, "audio_bitrate": settings.audio_bitrate}
+    value = {"v": 2, "source": source, "media": settings.media_type, "variant": variant}
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _stream_identity(fmt):
+    if fmt is None:
+        return None
+    result = {name: fmt.get(name) for name in (
+        "format_id", "vcodec", "acodec", "width", "height", "fps", "abr", "tbr",
+        "asr", "audio_channels", "language", "dynamic_range")}
+    for name in ("width", "height", "fps", "abr", "tbr", "asr", "audio_channels"):
+        if result[name] is not None:
+            try:
+                result[name] = float(result[name])
+            except (ValueError, TypeError):
+                pass
+    return result
+
+
+def _selection_identity(formats, settings):
+    if settings.media_type == "audio":
+        audio = selector.pick_music(formats, settings.mode)
+        return {"audio": _stream_identity(audio), "format": settings.audio_format,
+                "bitrate": settings.audio_bitrate if settings.audio_format == "mp3" else None}
+    video, audio, _ = selector.pick_streams(formats, settings.mode, settings.max_height)
+    return {"video": _stream_identity(video), "audio": _stream_identity(audio),
+            "container": _container_for_streams(video, audio)}
+
+
+def already_downloaded(url, settings, selection=None):
     """True if ``url`` was completed *and its file still exists*.
 
     The archive stores the output path alongside the URL. An entry whose
@@ -691,15 +738,11 @@ def already_downloaded(url, settings):
     """
     if not settings.use_archive:
         return False
-    stored = _archive_entries(settings).get(url)
-    if stored is None:
-        # Legacy entry written before paths were tracked. It lives inside the
-        # output folder, so it still describes downloads made there.
-        return url in _archive_entries(settings)
-    return os.path.isfile(stored)
+    stored = _archive_entries(settings).get(_archive_key(url, settings, selection))
+    return bool(stored and os.path.isfile(stored))
 
 
-def _record_archive(url, settings, path):
+def _record_archive(url, settings, path, selection=None):
     """Append ``url`` and its output path after a verified success.
 
     Done manually rather than letting yt-dlp record it per stream, so a
@@ -708,19 +751,31 @@ def _record_archive(url, settings, path):
     """
     if not settings.use_archive:
         return
+    key = _archive_key(url, settings, selection)
     existing = _archive_entries(settings)
-    if url in existing and existing[url] == path:
+    if existing.get(key) == path:
         return
     lines = [
         f"YT-Duo {u}" + (f" {p}" if p else "")
-        for u, p in existing.items() if u != url
+        for u, p in existing.items() if u != key
     ]
-    lines.append(f"YT-Duo {url} {path}")
+    lines.append(f"YT-Duo {key} {path}")
+    stage = None
     try:
-        with open(settings.archive_file, "w", encoding="utf-8") as fh:
+        os.makedirs(os.path.dirname(settings.archive_file), exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False,
+                                         dir=os.path.dirname(settings.archive_file)) as fh:
+            stage = fh.name
             fh.write("\n".join(lines) + "\n")
+        os.replace(stage, settings.archive_file)
     except OSError:
         pass
+    finally:
+        if stage and os.path.exists(stage):
+            try:
+                os.remove(stage)
+            except OSError:
+                pass
 
 
 def verify_audio_output(path, fmt, settings):
@@ -766,7 +821,8 @@ def run_music(url, index, title, formats, settings, emit, should_stop=None):
         "mp4a": "m4a", "opus": "opus", "vorbis": "ogg", "mp3": "mp3",
         "flac": "flac"}.get(family, "mka")
     os.makedirs(settings.media_output_dir, exist_ok=True)
-    output = build_output_path(settings.media_output_dir, index, title, extension)
+    output = build_output_path(settings.media_output_dir, index, title, extension,
+                               numbered=bool(settings.numbered))
     # Reserve our own output atomically; cleanup must never delete another run's file.
     with open(output, "xb"):
         pass
@@ -793,13 +849,16 @@ def run_music(url, index, title, formats, settings, emit, should_stop=None):
     return report
 
 
-def run_item(url, index, total, settings, emit=None, should_stop=None):
+def run_item(url, index, total, settings, emit=None, should_stop=None,
+             confirm_redownload=None):
     """Process one URL end-to-end. Raises on failure; returns a report.
 
     ``should_stop`` is polled between chunks of an in-flight download, so
     Cancel interrupts immediately rather than at the next queue item.
     """
     emit = emit or (lambda name, data: None)
+    if settings.numbered is None:
+        settings = settings.replace(numbered=total > 1)
     emit("item_start", {"index": index, "total": total, "url": url})
 
     # Fail fast on hosts yt-dlp has no extractor for. Previously these cost
@@ -812,9 +871,19 @@ def run_item(url, index, total, settings, emit=None, should_stop=None):
     info = probe(url, settings, logger)
     title = info.get("title") or info.get("id") or f"item {index}"
     formats = info.get("formats") or []
+    if should_stop and should_stop():
+        raise Cancelled()
+    selection = _selection_identity(formats, settings)
+    if already_downloaded(url, settings, selection):
+        approved = bool(confirm_redownload(url)) if confirm_redownload else False
+        if should_stop and should_stop():
+            raise Cancelled()
+        if not approved:
+            emit("item_skipped", {"index": index, "url": url})
+            return {"skipped": True}
     if settings.media_type == "audio":
         report = run_music(url, index, title, formats, settings, emit, should_stop)
-        _record_archive(url, settings, report["path"])
+        _record_archive(url, settings, report["path"], selection)
         return report
     video_fmt, audio_fmt, needs_merge = selector.pick_streams(
         formats, settings.mode, settings.max_height)
@@ -838,7 +907,7 @@ def run_item(url, index, total, settings, emit=None, should_stop=None):
 
         report = merge(index, title, video_path, audio_path, video_fmt,
                        audio_fmt, settings, emit)
-        _record_archive(url, settings, report["path"])
+        _record_archive(url, settings, report["path"], selection)
         return report
     except (NoSuitableFormat, MergeError, ValidationError, KeyboardInterrupt,
             Cancelled):
@@ -876,6 +945,7 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None,
     cancelled = False
     interrupted_index = None
     position = 0
+    queue_mode = len(queue) > 1
 
     while queue:
         if should_stop():
@@ -885,36 +955,30 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None,
         url = queue.pop(0)
         position += 1
 
-        duplicate = already_downloaded(url, settings)
-        redownload = bool(confirm_redownload(url)) if duplicate and confirm_redownload else False
-        if should_stop():
-            cancelled = True
-            break
-        if duplicate and not redownload:
-            results.append({"url": url, "ok": True, "skipped": True})
-            emit("item_skipped", {"index": position, "url": url})
-        else:
-            try:
-                report = run_item(url, position, total, settings, emit,
-                                  should_stop)
+        item_settings = settings.replace(numbered=queue_mode if settings.numbered is None else settings.numbered)
+        try:
+            report = run_item(url, position, total, item_settings, emit,
+                              should_stop, confirm_redownload=confirm_redownload)
+            if report.get("skipped") is True:
+                results.append({"url": url, "ok": True, "skipped": True})
+            else:
                 results.append({"url": url, "ok": True, "report": report})
                 emit("item_ok", {"index": position, "report": report})
-            except (KeyboardInterrupt, Cancelled):
-                emit("batch_interrupted", {"index": position})
-                cancelled = True
-                interrupted_index = position
-                break
-            except Exception as exc:
-                detail = str(exc)
-                results.append({"url": url, "ok": False,
-                                "reason": classify_error(exc),
-                                "detail": detail})
-                emit("item_failed", {
-                    "index": position,
-                    "reason": classify_error(exc),
-                    "detail": detail,
-                })
-
+        except (KeyboardInterrupt, Cancelled):
+            emit("batch_interrupted", {"index": position})
+            cancelled = True
+            interrupted_index = position
+            break
+        except Exception as exc:
+            detail = str(exc)
+            results.append({"url": url, "ok": False,
+                            "reason": classify_error(exc),
+                            "detail": detail})
+            emit("item_failed", {
+                "index": position,
+                "reason": classify_error(exc),
+                "detail": detail,
+            })
         # Anything queued while we were busy joins the run.
         if take_more is not None and not should_stop():
             try:
@@ -922,6 +986,7 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None,
             except Exception:  # noqa: BLE001 - a bad callback must not stop us
                 extra = []
             if extra:
+                queue_mode = True
                 queue.extend(extra)
                 total += len(extra)
                 emit("queue_grew", {"added": len(extra), "total": total,

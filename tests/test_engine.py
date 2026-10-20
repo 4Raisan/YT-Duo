@@ -313,7 +313,7 @@ class Merge(TempWorkspace):
 
     def test_never_overwrites_an_existing_output(self):
         """The old code ran ffmpeg -y and silently replaced earlier files."""
-        first = self.write(os.path.join(self.settings.output_dir, "01. My Title.mp4"),
+        first = self.write(os.path.join(self.settings.output_dir, "My Title.mp4"),
                            b"original")
         with mock.patch.object(engine.subprocess, "run",
                                new=self._run_ffmpeg_then_probe()):
@@ -549,7 +549,7 @@ class RunBatch(TempWorkspace):
         events = []
         calls = []
 
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             calls.append((url, index))
             if "bad" in url:
                 raise ValueError("nope")
@@ -582,7 +582,7 @@ class RunBatch(TempWorkspace):
 
     def test_cancel_mid_item_is_not_counted_as_failure(self):
         """A Cancelled raised inside an item stops the run cleanly."""
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             raise engine.Cancelled()
 
         events = []
@@ -644,9 +644,9 @@ class ArchiveTracking(TempWorkspace):
         os.remove(out)
         self.assertFalse(engine.already_downloaded("https://youtu.be/a", self.settings))
 
-    def test_archive_lives_in_the_output_folder(self):
+    def test_archive_lives_in_private_state(self):
         self.assertTrue(self.settings.archive_file.startswith(
-            self.settings.output_dir))
+            self.settings.state_dir))
 
     def test_a_different_output_folder_does_not_skip(self):
         out = self._output()
@@ -683,13 +683,17 @@ class ArchiveTracking(TempWorkspace):
 
     def test_run_batch_skips_archived_urls(self):
         out = self._output()
-        engine._record_archive("https://youtu.be/a", self.settings, out)
+        info = {"title": "Example", "formats": [vfmt(), afmt()]}
+        selection = engine._selection_identity(info["formats"], self.settings)
+        engine._record_archive("https://youtu.be/a", self.settings, out, selection)
         events = []
-        with mock.patch.object(engine, "run_item") as run_item_mock:
+        with mock.patch.object(engine, "probe", return_value=info), \
+             mock.patch.object(engine, "is_host_supported", return_value=True), \
+             mock.patch.object(engine, "fetch_stream") as fetch:
             summary = engine.run_batch(
                 ["https://youtu.be/a"], self.settings,
                 emit=lambda n, d: events.append(n))
-            run_item_mock.assert_not_called()
+            fetch.assert_not_called()
         self.assertEqual(summary["skipped"], 1)
         self.assertEqual(summary["completed"], 0)
         self.assertIn("item_skipped", events)
