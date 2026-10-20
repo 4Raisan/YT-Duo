@@ -77,12 +77,18 @@ class YtDuoApp:
     def _save_settings(self):
         data = dict(self.saved)
         data.update({
+            "destination_layout": 1,
             "mode": self.mode_var.get(),
             "max_height": self._selected_height(),
             "output_dir": self.output_var.get(),
             "use_archive": bool(self.archive_var.get()),
             "cookies_from_browser": self.cookies_var.get().strip() or None,
             "theme": self.theme_name,
+            "audio_format": self.audio_format_var.get(),
+            "audio_bitrate": self.audio_bitrate_var.get() or None,
+            "font_scale": self.font_scale,
+            "always_on_top": bool(self.topmost_var.get()),
+            "open_after_download": bool(self.open_after_var.get()),
         })
         try:
             write_config(self._config_path(), data)
