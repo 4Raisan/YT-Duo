@@ -2,7 +2,7 @@ name: Build downloads
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-latest
@@ -45,3 +45,31 @@ jobs:
         with:
           name: YT-Duo-downloads
           path: Releases/*
+      - name: Stage verified downloads in a draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = python -c "from ytduo import __version__; print(__version__)"
+          $tag = "v$version"
+          $existing = gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName,isDraft | ConvertFrom-Json | Where-Object tagName -eq $tag
+          if ($existing -and -not $existing.isDraft) { throw 'Refusing to overwrite a published release' }
+          if (-not $existing) {
+            $notes = @"
+          Windows portable and Setup now bundle Python/Tk, yt-dlp with YouTube JS helpers, FFmpeg, FFprobe and Deno. No separate dependency installation is required for the Windows downloads.
+
+          Source and Unix users can run python -m ytduo --check-dependencies and follow the setup guide in Releases/README.md.
+
+          The build verifies pinned dependency hashes, runs a media conversion/probe smoke check, and tests the packaged dependency report with a system-only PATH. Downloads include a buildable source ZIP, licenses, third-party notices and SHA-256 checksums.
+
+          Windows builds remain unsigned. Linux/macOS downloads are Python launchers; native macOS execution and live YouTube downloads are not established by the offline tests.
+          "@
+            $notesPath = Join-Path $env:RUNNER_TEMP 'ytduo-release-notes.md'
+            Set-Content -LiteralPath $notesPath -Value $notes -Encoding utf8
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --draft --target $env:GITHUB_SHA --title "YT-Duo $version" --notes-file $notesPath
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create draft release' }
+          }
+          $files = @(Get-ChildItem Releases/windows/*.exe, Releases/linux/*.sh, Releases/macos/*.command, Releases/*-source.zip -File | ForEach-Object FullName)
+          $files += @('Releases/LICENSE', 'Releases/THIRD_PARTY_NOTICES.md', 'Releases/SHA256SUMS.txt')
+          gh release upload $tag @files --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload draft release assets' }
