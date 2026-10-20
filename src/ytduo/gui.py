@@ -870,10 +870,29 @@ class YtDuoApp:
         self._autosize()
 
     def _preflight(self, settings):
+        try:
+            os.makedirs(settings.media_output_dir, exist_ok=True)
+            with tempfile.TemporaryFile(dir=settings.media_output_dir):
+                pass
+        except OSError:
+            from tkinter import filedialog
+            chosen = filedialog.askdirectory(parent=self.root,
+                title="Download folder unavailable — choose another folder",
+                initialdir=os.path.expanduser("~"))
+            if not chosen:
+                return False
+            self.output_var.set(chosen)
+            try:
+                destination = self._make_settings().media_output_dir
+                os.makedirs(destination, exist_ok=True)
+                with tempfile.TemporaryFile(dir=destination):
+                    pass
+            except OSError:
+                return False
         if not engine.find_ffmpeg(settings) or not engine.find_ffprobe(settings):
             messagebox.showerror(
                 "YT-Duo", "ffmpeg/ffprobe not found.\n"
-                         "Run runner.bat to install the dependencies.")
+                         "Run YT-Duo.bat to install the dependencies.")
             return False
         return True
 
