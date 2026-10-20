@@ -1,6 +1,6 @@
 # Development and packaging
 
-Install with `python -m pip install -e .`. Run offline checks with `python -m unittest discover -s tests -t . -q`.
+Install with `python -m pip install -e .`. Run offline checks with `python -m unittest discover -s tests -t . -q`. Run `python tests/media_smoke.py` with installed FFmpeg/FFprobe for real engine conversions, duplicate decisions, queue naming and private-storage checks using synthetic fixtures. CI runs full unit/Tk tests on Windows/Linux, headless engine/CLI tests on macOS, and real media checks on Linux/macOS; the Windows build tests the same paths against its minimal FFmpeg tools.
 
 ## Structure
 

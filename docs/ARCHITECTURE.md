@@ -10,14 +10,14 @@ Solid arrows show work or data moving through the download workflow. Dashed arro
 
 ![Download workflow: queue, fresh metadata, video and music branches, verification, and completion](assets/download-flow.svg)
 
-`engine.run_batch()` processes a live, sequential queue. It checks the completion archive before starting an item, accepts additional URLs between items, reports individual failures, and stops the batch when cancellation is observed. Archive skipping can be disabled. Current archive entries track output paths and check that those files still exist; legacy entries without paths use their original URL-only behavior.
+`engine.run_batch()` processes a live, sequential queue. After probing and selecting an item, it checks private completion history for that exact variant, accepts additional URLs between items, reports individual failures, and stops the batch when cancellation is observed. Archive skipping can be disabled. History keys include a normalized source URL, selected stream identities, output container and audio encoding/bitrate. Existing output files must still exist. Legacy URL-only records are preserved privately but cannot trigger an exact-match warning.
 
 Every download probes fresh metadata. `selector.py` ranks streams using the selected policy and resolution cap. A cap is a preference: the engine may select a higher resolution when no candidate satisfies it. It does not upscale media.
 
 - **Video:** fetch the selected video and, when needed, a separate audio stream. FFmpeg merges with stream copy. FFprobe checks video presence, expected audio, resolution, frame rate, codec, and positive duration before completion is recorded.
 - **Music:** prefer an audio-only source, with a muxed fallback. FFmpeg keeps only audio. Original quality copies the codec; MP3 uses high-quality variable bitrate for Best or a 128/192/256/320 kbps target. FFprobe checks that the output contains audio, no video, the expected codec, positive duration, and the selected fixed MP3 bitrate when applicable. Conversion cannot improve the source quality.
 
-Verified outputs use safe filenames and collision checks. Successful processing deletes its temporary source streams after verification. Startup and batch cleanup remove only the dedicated, non-linked recycle directory under the application root. Failed validation removes the invalid final output. Completion archives are separate for video, original audio, MP3 Best, and each fixed MP3 bitrate; recording happens after verification and only when archives are enabled.
+Verified outputs use safe filenames and collision checks. Successful processing deletes its temporary source streams after verification. Startup and batch cleanup remove only the dedicated, non-linked `.ytduo/work/recycle` directory. Failed validation removes the invalid final output. Completion history is scoped to the chosen output folder and stored inside `.ytduo/history`; recording happens atomically after verification and only when archives are enabled. Single filenames omit the queue index; queued outputs retain their original positions and collision suffixes protect existing files.
 
 ## Desktop event flow
 
@@ -34,7 +34,7 @@ Video is the default. Music hides the video quality/format rows while preserving
 | [`gui.py`](../src/ytduo/gui.py) | Desktop controls, preferences, live queue, preview, and service status. |
 | [`gui_worker.py`](../src/ytduo/gui_worker.py) | Worker thread, cancellation signal, and event bridge. |
 | [`cli.py`](../src/ytduo/cli.py) | Arguments, URL input, console events, and terminal execution. |
-| [`config.py`](../src/ytduo/config.py) | Resolved settings, local paths, environment overrides, and archive separation. |
+| [`config.py`](../src/ytduo/config.py) | Resolved settings, private state paths, legacy migration, environment overrides and destination-scoped history. |
 | [`selector.py`](../src/ytduo/selector.py) | Pure stream ranking, music selection, and offered video tiers. |
 | [`engine.py`](../src/ytduo/engine.py) | Queue, metadata, fetch/retry, FFmpeg processing, FFprobe validation, and archive/storage helpers. |
 | [`naming.py`](../src/ytduo/naming.py) | Filesystem-safe output names and collision suffixes. |

@@ -9,6 +9,7 @@ recycle/
 *.temp
 
 # --- User input / state ---
+.ytduo/
 # links.txt holds a personal queue; keep it local.
 links.txt
 config.json
