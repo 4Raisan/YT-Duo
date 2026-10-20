@@ -1529,15 +1529,15 @@ class YtDuoApp:
         if not urls:
             messagebox.showinfo("YT-Duo", "The queue is empty.")
             return
-        self._start(urls)
+        self._start(urls, queued=True)
 
-    def _start(self, urls):
+    def _start(self, urls, queued=False):
         if self.worker and self.worker.is_alive():
             return
-        settings = self._make_settings()
+        settings = self._make_settings().replace(numbered=True if queued else None)
         if not self._preflight(settings):
             return
-        settings = self._make_settings()
+        settings = self._make_settings().replace(numbered=True if queued else None)
         self._save_settings()
 
         self.bridge.reset()

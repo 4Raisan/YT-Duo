@@ -80,8 +80,8 @@ def build_parser():
         "-o", "--output", dest="output_dir", default=None, metavar="DIR",
         help="output folder (default: downloads/)")
     parser.add_argument(
-        "--numbered", dest="numbered", action="store_true", default=True,
-        help="prefix outputs with their queue position (default)")
+        "--numbered", dest="numbered", action="store_true", default=None,
+        help="prefix outputs with their queue position (default: queues only)")
     parser.add_argument(
         "--no-numbered", dest="numbered", action="store_false",
         help="do not prefix output filenames with a number")
@@ -348,6 +348,7 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         media_type="audio" if args.audio else "video",
         audio_format=args.audio_format,
         audio_bitrate=args.audio_bitrate,
+        numbered=args.numbered,
     )
 
     renderer = ConsoleRenderer(quiet=args.quiet, stream=out)
@@ -375,6 +376,8 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
             out.write(f"  ERROR: queue file not found: {settings.link_file}\n")
             return 1
         urls = read_queue(settings.link_file)
+        if urls and args.numbered is None:
+            settings = settings.replace(numbered=True)
     if not urls:
         urls = prompt_for_urls(out)
 

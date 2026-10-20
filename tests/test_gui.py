@@ -76,6 +76,9 @@ def fake_report(tmpdir, name="video.mp4"):
 class GuiTestCase(unittest.TestCase):
     def setUp(self):
         self.root = make_workspace()
+        self.home_patch = mock.patch.dict(os.environ, {"YTDUO_HOME": self.root})
+        self.home_patch.start()
+        self.addCleanup(self.home_patch.stop)
         try:
             self.tk = tk.Tk()
             self.tk.withdraw()
@@ -198,12 +201,8 @@ class ModePicker(GuiTestCase):
         """A saved config drives both the mode var and its friendly label."""
         from ytduo import gui
 
-        original = gui.read_config_file
-        gui.read_config_file = lambda _path: {"mode": "compat"}
-        try:
-            other = gui.YtDuoApp(tk.Toplevel(self.tk))
-        finally:
-            gui.read_config_file = original
+        with mock.patch.object(gui, "read_user_config", return_value={"mode": "compat"}):
+            other = gui.YtDuoApp(tk.Toplevel(self.tk), background_checks=False)
         try:
             self.assertEqual(other.mode_var.get(), "compat")
 
@@ -339,7 +338,7 @@ class LiveQueue(GuiTestCase):
     def test_links_added_mid_run_are_downloaded(self):
         seen = []
 
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             seen.append(url)
             time.sleep(0.2)
             return {"path": "x"}
@@ -475,7 +474,7 @@ class DownloadFlow(GuiTestCase):
     def test_single_download_success_flow(self):
         report = fake_report(self.root)
 
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             emit("item_start", {"index": index, "total": total, "url": url})
             emit("probe", {"index": index, "title": "T",
                            "video": "137 h264 1280x720", "audio": "140 aac"})
@@ -510,7 +509,7 @@ class DownloadFlow(GuiTestCase):
         report = fake_report(self.root)
         seen = []
 
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             seen.append(url)
             return report
 
@@ -542,7 +541,7 @@ class DownloadFlow(GuiTestCase):
 
 class FailureHandling(GuiTestCase):
     def test_failed_item_is_reported_not_raised(self):
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             emit("item_failed", {"index": index, "reason": "video unavailable",
                                  "detail": "ERROR: Video unavailable"})
             raise ValueError("ERROR: Video unavailable")
@@ -604,7 +603,7 @@ class Cancellation(GuiTestCase):
         """Cancel must interrupt the current download, not just the queue."""
         started = []
 
-        def slow_run_item(url, index, total, settings, emit, should_stop=None):
+        def slow_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             started.append(url)
             # A real download polls should_stop between chunks.
             for _ in range(600):
@@ -632,7 +631,7 @@ class Cancellation(GuiTestCase):
         started = []
         stop = {"v": False}
 
-        def fake_run_item(url, index, total, settings, emit, should_stop=None):
+        def fake_run_item(url, index, total, settings, emit, should_stop=None, **kwargs):
             started.append(url)
             stop["v"] = True          # user clicks Cancel right after item 1
             return fake_report(self.root, f"{index}.mp4")
