@@ -3,11 +3,12 @@
 set -euo pipefail
 project="$(pwd)"
 source_dir="$(python -c 'from scripts.build_release import ffmpeg_source_dir; print(ffmpeg_source_dir().as_posix())')"
+version="$(python -c 'from scripts.build_release import version; print(version())')"
 output="$project/build/minimal-ffmpeg"
 mkdir -p "$output/licenses/ffmpeg"
 cd "$source_dir"
 # An archive inside another Git checkout must not inherit that repo's version.
-python -c 'import json; from pathlib import Path; p=Path("'"$project"'/scripts/windows-tools.json"); Path("VERSION").write_text(json.loads(p.read_text())[0]["version"] + "\n")'
+printf '%s\n' "$version" > VERSION
 ./configure \
   --extra-version=YT-Duo-minimal \
   --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ \
