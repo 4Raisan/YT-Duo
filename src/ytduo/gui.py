@@ -1293,6 +1293,69 @@ class YtDuoApp:
         self._auto_generation = self._preview_generation
         self.download_single()
 
+    def _confirm_redownload(self, url):
+        request = {"url": url, "event": threading.Event(), "approved": False}
+        self.bridge.emit("redownload_request", request)
+        while not request["event"].wait(0.1):
+            if self.bridge.cancelled or self._destroyed:
+                return False
+        return request["approved"] and not self.bridge.cancelled
+
+    def _on_redownload_request(self, request):
+        if self._destroyed or self.bridge.cancelled:
+            request["event"].set()
+            return
+        self._redownload_request = request
+        win = tk.Toplevel(self.root)
+        self._redownload_dialog = win
+        win.title("Already downloaded")
+        win.configure(bg=self.palette["bg"])
+        win.transient(self.root)
+        win.resizable(False, False)
+        win.protocol("WM_DELETE_WINDOW", lambda: self._finish_redownload(False))
+        self._label(win, "Download again?", "body_bold").pack(
+            anchor="w", padx=20, pady=(18, 8))
+        self._redownload_countdown = self._label(win, "", "small", "text_dim")
+        self._redownload_countdown.pack(anchor="w", padx=20, pady=(10, 0))
+        buttons = tk.Frame(win, bg=self.palette["bg"])
+        buttons.pack(fill="x", padx=20, pady=16)
+        widgets.Button(buttons, "Again", lambda: self._finish_redownload(True),
+            self.palette, self.fonts, height=32).pack(side="right")
+        skip = tk.Button(buttons, text="Skip", command=lambda: self._finish_redownload(False),
+            bg=self.palette["surface_alt"], fg=self.palette["text"], font=self.fonts["button"],
+            relief="flat", padx=12)
+        skip.pack(side="right", padx=(0, 8))
+        win.bind("<Escape>", lambda _e: self._finish_redownload(False))
+        win.update_idletasks()
+        x = max(0, self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = max(0, self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_reqheight()) // 2)
+        win.geometry(f"+{x}+{y}")
+        skip.focus_set()
+        self.status_label.configure(text="Already downloaded")
+        self._redownload_tick(10)
+
+    def _redownload_tick(self, remaining):
+        self._redownload_timer = None
+        if not self._redownload_request:
+            return
+        if remaining <= 0:
+            self._finish_redownload(False)
+            return
+        self._redownload_countdown.configure(text=f"Skip in {remaining}s")
+        self._redownload_timer = self.root.after(1000, lambda: self._redownload_tick(remaining - 1))
+
+    def _finish_redownload(self, approved):
+        if self._redownload_timer:
+            self.root.after_cancel(self._redownload_timer)
+            self._redownload_timer = None
+        if self._redownload_dialog:
+            self._redownload_dialog.destroy()
+            self._redownload_dialog = None
+        request, self._redownload_request = self._redownload_request, None
+        if request:
+            request["approved"] = bool(approved)
+            request["event"].set()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""

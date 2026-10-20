@@ -750,7 +750,8 @@ def run_item(url, index, total, settings, emit=None, should_stop=None):
         raise
 
 
-def run_batch(urls, settings, emit=None, should_stop=None, take_more=None):
+def run_batch(urls, settings, emit=None, should_stop=None, take_more=None,
+              confirm_redownload=None):
     """Download every URL in order. Returns a summary dict.
 
     ``should_stop`` is an optional callable polled between items *and*
@@ -765,6 +766,10 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None):
     should_stop = should_stop or (lambda: False)
 
     settings.ensure_dirs()
+    try:
+        clear_recycle(settings)
+    except OSError as exc:
+        emit("warning", {"message": "Recycle cleanup: " + str(exc)})
     results = []
     queue = list(urls)
     total = len(queue)
@@ -780,7 +785,12 @@ def run_batch(urls, settings, emit=None, should_stop=None, take_more=None):
         url = queue.pop(0)
         position += 1
 
-        if already_downloaded(url, settings):
+        duplicate = already_downloaded(url, settings)
+        redownload = bool(confirm_redownload(url)) if duplicate and confirm_redownload else False
+        if should_stop():
+            cancelled = True
+            break
+        if duplicate and not redownload:
             results.append({"url": url, "ok": True, "skipped": True})
             emit("item_skipped", {"index": position, "url": url})
         else:
