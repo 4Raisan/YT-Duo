@@ -359,7 +359,7 @@ class YtDuoApp:
         self.progress_frame = tk.Frame(self.shell, bg=self.palette["bg"])
 
         top = tk.Frame(self.progress_frame, bg=self.palette["bg"])
-        top.pack(fill="x", pady=(16, 6))
+        top.pack(fill="x", pady=(8, 6))
         self.status_label = widgets.AnimatedLabel(
             top, self.palette, self.fonts, "body_bold")
         self.status_label.configure(text="Ready.")
@@ -367,9 +367,12 @@ class YtDuoApp:
         self.detail_label = self._label(top, "", "small", "text_dim")
         self.detail_label.pack(side="right")
 
-        self.progress = widgets.ProgressBar(self.progress_frame, self.palette,
-                                           height=8)
-        self.progress.pack(fill="x")
+        self.progress_line = tk.Frame(self.progress_frame, bg=self.palette["bg"])
+        self.progress_line.pack(fill="x")
+        self.run_controls = tk.Frame(self.progress_line, bg=self.palette["bg"])
+        self.run_controls.pack(side="right", padx=(8, 0))
+        self.progress = widgets.ProgressBar(self.progress_line, self.palette, height=8)
+        self.progress.pack(side="left", fill="x", expand=True)
 
     def _build_advanced(self):
         self.advanced = tk.Frame(self.shell, bg=self.palette["bg"])
@@ -859,11 +862,17 @@ class YtDuoApp:
         if running:
             self.cancel_button.set_enabled(True)
             if not self.cancel_button.winfo_manager():
-                self.cancel_button.pack(side="left", padx=(8, 0))
+                self.cancel_button.pack(side="right")
+                self.pause_button.pack(side="right", padx=(0, 8))
+            self.pause_button.set_enabled(True)
         else:
             self.cancel_button.set_enabled(False)
             self.cancel_button.pack_forget()
-        self.root.configure(cursor="watch" if running else "")
+            self.pause_button.pack_forget()
+            self._pause_requested = False
+            self.pause_button.set_text("Ⅱ")
+            self.pause_button.set_active(False)
+        self.root.configure(cursor="")
         # Setting the action row's visibility may add the Cancel button,
         # which changes the required height -- size after, not before.
         self._update_queue_hint(running=running)
