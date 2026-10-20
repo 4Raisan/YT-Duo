@@ -491,6 +491,7 @@ class YtDuoApp:
         self.release_button.pack_forget()
         self.update_status.configure(text="Checking updates…", fg=self.palette["text_dim"])
         self.update_button.set_enabled(False)
+        self.update_button.set_text("Checking…")
         bridge = self.service_bridge
 
         def work():
@@ -509,6 +510,7 @@ class YtDuoApp:
         self._update_result = result
         self._update_thread = None
         self.update_button.set_enabled(True)
+        self.update_button.set_text("Check updates")
         self.release_button.pack_forget()
         status = result.get("status")
         if status == "available":
@@ -517,6 +519,10 @@ class YtDuoApp:
         else:
             text = {"current": "Up to date", "unpublished": "No release published"}.get(
                 status, "Update check unavailable")
+            if status not in ("current", "unpublished"):
+                self.release_button.pack(side="right", padx=(0, 6))
+                self.append_log("Update check failed. " + result.get("reason", "Could not reach GitHub.")
+                                + " Use View release to check manually.", "error")
         self.update_status.configure(text="v" + __version__ + " · " + text,
             fg=self.palette["success"] if status == "available" else self.palette["text_dim"])
         self._autosize()

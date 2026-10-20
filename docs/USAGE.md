@@ -26,6 +26,6 @@ python -m ytduo --help
 
 ## Limits
 
-Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--no-numbered` is currently accepted but not applied. Updates contact GitHub's public release endpoint and open the release page for manual download; nothing installs automatically.
+Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--no-numbered` is currently accepted but not applied. Updates check GitHub at startup and when you click Check updates. If the API is unavailable, the app also checks GitHub's latest-release redirect. A failed check keeps View release available and explains the failure in the terminal. Download and install updates manually; nothing installs automatically.
 
 YT-Duo is independent of YouTube/Google. Download only content you have permission to save.

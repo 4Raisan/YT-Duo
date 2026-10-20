@@ -197,6 +197,26 @@ class ReleaseChecks(unittest.TestCase):
         opener.open.side_effect = urllib.error.HTTPError(updates.RELEASE_API, 404, "missing", {}, None)
         self.assertEqual(checker.check(force=True)["status"], "unpublished")
 
+    def test_rate_limited_api_uses_only_trusted_stable_release_redirect(self):
+        for location, expected in ((updates.REPO_URL + "/releases/tag/v5.0.0", "available"),
+                                   ("https://evil.invalid/releases/tag/v5.0.0", "unavailable"),
+                                   (updates.REPO_URL + "/releases/tag/v5.0.0-beta", "unavailable")):
+            checker, opener = self.checker({})
+            opener.open.side_effect = [
+                urllib.error.HTTPError(updates.RELEASE_API, 403, "rate limited", {}, None),
+                urllib.error.HTTPError(updates.RELEASE_URL, 302, "redirect", {"Location": location}, None)]
+            result = checker.check(True)
+            self.assertEqual(result["status"], expected)
+            self.assertEqual(opener.open.call_args.args[0].full_url, updates.RELEASE_URL)
+
+    def test_offline_reason_is_actionable_and_retry_is_not_cached_for_an_hour(self):
+        checker, opener = self.checker({})
+        opener.open.side_effect = OSError("private details")
+        self.assertIn("connection", checker.check()["reason"])
+        checker.clock = lambda: 71
+        checker.check()
+        self.assertEqual(opener.open.call_count, 4)
+
 
 class FolderPolicy(unittest.TestCase):
     def test_installed_and_portable_defaults_and_custom_destinations(self):
@@ -750,7 +770,7 @@ class UpgradeGui(GuiTestCase):
             self.assertTrue(pump_until(self.tk, lambda: not self.app._external_pending))
         browse.assert_called_once_with(updates.RELEASE_URL)
         self.app._on_update_result({"status": "unavailable"})
-        self.assertEqual(self.app.release_button.winfo_manager(), "")
+        self.assertEqual(self.app.release_button.winfo_manager(), "pack")
         self.assertIn("unavailable", self.app.update_status.cget("text"))
 
     def test_every_application_launch_requests_a_fresh_update_check(self):

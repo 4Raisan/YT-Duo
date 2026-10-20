@@ -18,7 +18,7 @@ front-end needs no knowledge of yt-dlp, ffmpeg, or the folder layout -- it
 calls ``run_batch(urls, settings, emit=...)`` and renders what comes back.
 """
 
-__version__ = "4.6.0"
+__version__ = "4.6.1"
 __app_name__ = "YT-Duo"
 __tagline__ = "Download YouTube videos in the best available quality."
 

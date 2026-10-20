@@ -5,6 +5,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 REPO_URL = "https://github.com/4Raisan/YT-Duo"
 RELEASE_URL = REPO_URL + "/releases/latest"
@@ -33,7 +34,8 @@ class UpdateChecker:
 
     def check(self, force=False):
         with self._lock:
-            if not force and self._cached and self.clock() - self._checked < 3600:
+            ttl = 60 if self._cached and self._cached["status"] == "unavailable" else 3600
+            if not force and self._cached and self.clock() - self._checked < ttl:
                 return dict(self._cached)
             result = {"status": "unavailable", "current": self.version}
             request = urllib.request.Request(RELEASE_API, headers={
@@ -52,10 +54,32 @@ class UpdateChecker:
                 result.update(status="available" if candidate > current else "current",
                               latest=".".join(map(str, candidate)), url=RELEASE_URL)
             except urllib.error.HTTPError as exc:
+                result["reason"] = "GitHub returned HTTP " + str(exc.code)
                 if exc.code == 404:
                     result["status"] = "unpublished"
                 exc.close()
-            except (OSError, ValueError, TypeError, AttributeError):
-                pass
+            except OSError:
+                result["reason"] = "Could not reach GitHub. Check your connection, proxy or firewall."
+            except (ValueError, TypeError, AttributeError):
+                result["reason"] = "GitHub returned an unexpected release response."
+            if result["status"] == "unavailable":
+                # Read only GitHub's redirect; never follow an arbitrary destination.
+                try:
+                    request = urllib.request.Request(RELEASE_URL, headers={
+                        "User-Agent": "YT-Duo/" + self.version})
+                    with self.opener.open(request, timeout=8):
+                        pass
+                except urllib.error.HTTPError as exc:
+                    location = urllib.parse.urljoin(RELEASE_URL, exc.headers.get("Location", ""))
+                    prefix = REPO_URL + "/releases/tag/"
+                    candidate = version_parts(location[len(prefix):]) if location.startswith(prefix) else None
+                    current = version_parts(self.version)
+                    if exc.code in (301, 302, 303, 307, 308) and candidate and current:
+                        result.update(status="available" if candidate > current else "current",
+                                      latest=".".join(map(str, candidate)), url=RELEASE_URL)
+                        result.pop("reason", None)
+                    exc.close()
+                except (OSError, ValueError, TypeError, AttributeError):
+                    pass
             self._cached, self._checked = result, self.clock()
             return dict(result)
