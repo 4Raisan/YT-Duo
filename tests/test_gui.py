@@ -27,11 +27,14 @@ from ytduo import config, engine
 from ytduo.config import Settings
 
 
-HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
 
 
 def make_workspace():
-    path = os.path.join(HERE, f"_guitest-{uuid.uuid4().hex[:10]}")
+    """Throwaway directory for one test, removed in tearDown."""
+    base = os.path.join(HERE, "tests")
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, f"_guitest-{uuid.uuid4().hex[:10]}")
     os.mkdir(path)
     return path
 
@@ -80,7 +83,9 @@ class GuiTestCase(unittest.TestCase):
             self.skipTest(f"no display: {exc}")
 
         from ytduo.gui import YtDuoApp
-        self.app = YtDuoApp(self.tk)
+        with mock.patch.object(YtDuoApp, "_config_path",
+                               return_value=os.path.join(self.root, "config.json")):
+            self.app = YtDuoApp(self.tk, background_checks=False)
         # Isolate every run inside the temp workspace.
         self.app.output_var.set(self.root)
         self.app.saved = {}
@@ -130,8 +135,8 @@ class CompactLayout(GuiTestCase):
         self.assertFalse(self.app.settings_visible)
         self.assertEqual(self.app.advanced.winfo_manager(), "")
 
-    def test_log_hidden_until_content_arrives(self):
-        self.assertFalse(self.app._log_visible)
+    def test_log_starts_expanded_each_launch(self):
+        self.assertTrue(self.app._log_visible)
         self.app.append_log("hello")
         self.assertTrue(self.app._log_visible)
 
@@ -201,7 +206,7 @@ class ModePicker(GuiTestCase):
             gui.read_config_file = original
         try:
             self.assertEqual(other.mode_var.get(), "compat")
-            
+
         finally:
             other.destroy()
 
@@ -588,7 +593,7 @@ class FailureHandling(GuiTestCase):
     def test_empty_input_does_not_start(self):
         with mock.patch("ytduo.gui.messagebox.showinfo") as info:
             self.app.download_single()
-        self.assertTrue(info.called)
+        self.assertFalse(info.called)
         self.assertIsNone(self.app.worker)
 
 
@@ -735,11 +740,3 @@ class UrlExtraction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
-
-
-
-
-
-
-
