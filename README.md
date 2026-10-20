@@ -65,3 +65,7 @@ See [development and packaging](docs/DEVELOPMENT.md). Source code, scripts, test
 Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--no-numbered` is currently accepted but not applied. Updates contact GitHub's public release endpoint and open the release page for manual download; nothing installs automatically.
 
 YT-Duo is independent of YouTube/Google. Download only content you have permission to save.
+
+## License
+
+YT-Duo is licensed under the [MIT License](LICENSE). Third-party dependencies retain their own licenses.
