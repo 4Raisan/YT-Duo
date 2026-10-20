@@ -29,7 +29,7 @@ Runtime caches live under `%LOCALAPPDATA%/YT-Duo/runtime`, with a `%TEMP%/YT-Duo
 
 Unix launchers embed Python modules and the PNG icon. They use an existing Python/Tk/yt-dlp environment, not a bundled interpreter. Native macOS/Linux app packages and installers require separate platform builds and are not claimed here.
 
-Regenerate architecture/workflow SVGs with `python scripts/build_diagrams.py`. Approved branding is in docs/assets/yt-duo-logo.png and yt-duo-icon.png; application icons are in src/ytduo/assets.
+Regenerate architecture/workflow SVGs with `python scripts/build_diagrams.py`. The compact README logo is docs/assets/yt-duo-logo.svg: a transparent, self-contained SVG with the original PNG mark embedded and a vector text wordmark. Its wordmark adapts to light/dark color schemes. The original banner and transparent mark remain in docs/assets/yt-duo-logo.png and yt-duo-icon.png; application icons are in src/ytduo/assets.
 
 The play triangle uses bright ivory with a crimson edge for contrast against the red glass. The banner and transparent mark were edited with built-in imagegen using the instruction: change only the central triangle to ivory, preserve the red facets, shape, layout, and typography. PNG/ICO derivatives, diagrams, and release downloads use the same treatment.
 
