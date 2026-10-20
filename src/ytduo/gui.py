@@ -339,6 +339,8 @@ class YtDuoApp:
     def _refresh_destination(self):
         """Show the folder name, with the full path as a tooltip."""
         path = self.output_var.get() if hasattr(self, "output_var") else ""
+        if self.media_var.get() == "audio":
+            path = os.path.join(path, "Audio")
         shown = self._short_path(path)
         self.dest_label.configure(text=shown)
         self.dest_label._full_path = path
@@ -837,11 +839,14 @@ class YtDuoApp:
 
     def _make_settings(self):
         return Settings(
-            mode=self.mode_var.get(),
+            mode="best" if self.media_var.get() == "audio" else self.mode_var.get(),
             output_dir=self.output_var.get(),
             max_height=self._selected_height(),
             use_archive=bool(self.archive_var.get()),
             cookies_from_browser=self.cookies_var.get().strip() or None,
+            media_type=self.media_var.get(),
+            audio_format=self.audio_format_var.get(),
+            audio_bitrate=self.audio_bitrate_var.get() or None,
         )
 
     def _set_running(self, running):

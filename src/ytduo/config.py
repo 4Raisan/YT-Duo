@@ -155,7 +155,7 @@ class Settings:
 
     @property
     def media_output_dir(self):
-        return self.output_dir
+        return os.path.join(self.output_dir, "Audio") if self.media_type == "audio" else self.output_dir
 
     @property
     def archive_file(self):
