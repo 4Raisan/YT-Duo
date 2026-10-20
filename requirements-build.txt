@@ -1,0 +1,2 @@
+# Install runtime first with pip install -e .
+pyinstaller>=6.22,<7
