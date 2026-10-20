@@ -68,3 +68,7 @@ At each GUI launch, `updates.py` requests a fresh check of the fixed GitHub late
 The diagrams describe the implemented code. Branding uses the approved faceted red Playdrop mark, charcoal, warm white, and coral accents. Diagram sources remain editable through `scripts/build_diagrams.py`.
 
 Download destinations are separate from the application data root: portable defaults to launcher-folder/YT-Duo Downloads; Setup resolves the Windows Downloads known folder and appends YT-Duo Downloads. Audio outputs use the Audio child folder of the selected destination. Archives remain in the base destination with per-media filenames. Saved custom destinations win; a destination-layout marker limits legacy-default migration to once. A failed destination creation offers a folder picker.
+
+## Dependency resolution
+
+Windows portable/Setup bundles Python/Tk, yt-dlp and EJS helpers, FFmpeg/FFprobe with their required DLLs, and Deno. Frozen runs prefer the tools inside their own runtime bundle before system PATH; explicit FFmpeg/FFprobe settings still take precedence. Deno is passed to yt-dlp by its absolute bundled path. No dependency installation happens during GUI startup. Source and Unix launchers use installed tools; `--check-dependencies` reports versions and detects missing or broken executables.

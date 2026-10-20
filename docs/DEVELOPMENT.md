@@ -86,3 +86,11 @@ All 283 offline tests passed. A real Tk main-entry regression records that mappi
 GitHub's Windows runner exposed an Options overflow at 125% text size on a short screen. The app now removes extra section spacing only when the queue's compact height is insufficient, then restores normal spacing when space is available. Text size and controls remain unchanged. A regression forces the constrained layout and checks restoration.
 
 The final application code passed 284 offline tests locally and on GitHub's Windows runner. The same successful workflow built the portable EXE, Setup, and Unix launchers. Release files and SHA256SUMS.txt were synchronized from those CI artifacts. The release tag adds only this publication record and the checksum update to the tested application code. Native macOS/Linux execution and live media downloads remain unverified for this publication.
+
+## Bundled dependencies (4.6.0)
+
+Windows builds explicitly download the versioned FFmpeg shared build and official Deno archive in scripts/windows-tools.json. Every archive and downloaded license must match its pinned SHA-256. Only the required tools, FFmpeg DLLs, and supplied text notices are packaged; ffplay is omitted. The builder runs all three tools and a short FFmpeg-to-FFprobe audio smoke check before freezing. Python packaging installs yt-dlp's default extras, and PyInstaller collects yt-dlp-ejs data and metadata.
+
+The GitHub build runs the packaged app's noninteractive dependency report with a system-only PATH, proving that bundled tools and EJS helpers load without development dependencies. The source ZIP contains tracked project files and licenses and is installed into a separate environment before upload. Offline tests run automatically on Windows and Linux pushes/pull requests.
+
+Unix launchers remain source-based and do not bundle tools or Python. Follow Releases/README.md for venv, Tk, FFmpeg/FFprobe and Deno installation. Application startup never downloads tools. Third-party source/license links and distribution notices are in THIRD_PARTY_NOTICES.md.

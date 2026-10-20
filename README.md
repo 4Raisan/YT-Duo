@@ -7,15 +7,19 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 ## Download
 
+**v4.6.0 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.0)**
+
 | Platform | Download |
 | --- | --- |
 | Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo-Setup.exe) |
 | Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.sh) |
 | macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.command) |
 
-**Required:** FFmpeg and FFprobe on PATH. Windows bundles Python; Linux/macOS need Python 3.10+, Tkinter, and yt-dlp. Deno is recommended for YouTube extraction.
+**Windows:** Python, Tk, yt-dlp, YouTube JS helpers, FFmpeg, FFprobe, and Deno are included—no separate dependency installation.
 
-Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; macOS execution is unverified. See the [download guide](Releases/README.md) for details and checksums.
+**Linux/macOS and source installs:** follow the [dependency setup guide](Releases/README.md#dependencies).
+
+Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; macOS execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.0/YT-Duo-4.6.0-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
 
 ## Quick start
 
@@ -34,7 +38,7 @@ python -m pip install -e .
 python -m ytduo --gui
 ```
 
-For command-line options: `python -m ytduo --help`.
+Verify dependencies with `python -m ytduo --check-dependencies`. For command-line options: `python -m ytduo --help`.
 
 ## Learn more
 
@@ -46,4 +50,4 @@ For command-line options: `python -m ytduo --help`.
 
 ## License
 
-[MIT](LICENSE). Third-party dependencies retain their own licenses.
+[MIT](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components. [Report a problem](https://github.com/4Raisan/YT-Duo/issues).
