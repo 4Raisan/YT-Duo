@@ -548,7 +548,8 @@ class UpgradeGui(GuiTestCase):
         def fail(_path):
             gate.wait(3)
             raise OSError("simulated access denied")
-        with mock.patch("ytduo.gui.desktop.open_folder_windows", side_effect=fail), \
+        with mock.patch("ytduo.gui.sys.platform", "win32"), \
+             mock.patch("ytduo.gui.desktop.open_folder_windows", side_effect=fail), \
              mock.patch("ytduo.gui.desktop.open_url") as browse, \
              mock.patch("ytduo.gui.messagebox.showerror") as show:
             self.app.open_output()
