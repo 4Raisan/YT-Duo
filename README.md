@@ -40,12 +40,9 @@ For command-line options: `python -m ytduo --help`.
 
 [Usage and settings](docs/USAGE.md) · [Architecture and diagrams](docs/ARCHITECTURE.md) · [Development and builds](docs/DEVELOPMENT.md)
 
-<details>
-<summary>View architecture diagram</summary>
+## Architecture
 
 ![YT-Duo architecture](docs/assets/architecture.svg)
-
-</details>
 
 ## License
 
