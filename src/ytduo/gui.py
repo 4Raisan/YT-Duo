@@ -201,27 +201,36 @@ class YtDuoApp:
     def _build_header(self):
         row = tk.Frame(self.shell, bg=self.palette["bg"])
         self.header_row = row
-        row.pack(fill="x", padx=theme.PAD, pady=(theme.PAD, 0))
+        row.pack(fill="x", padx=theme.PAD, pady=(8, 0))
 
-        left = tk.Frame(row, bg=self.palette["bg"])
-        left.pack(side="left")
-        self.title_label = self._label(left, "YT-Duo", "hero")
-        self.title_label.pack(anchor="w")
-        self.subtitle = self._label(
-            left, "Paste a link, choose a quality, press Enter.",
-            "subtitle", "text_dim")
+        tools = tk.Frame(row, bg=self.palette["bg"])
+        tools.pack(fill="x", pady=(0, 6))
+        self.brand_icon = tk.Label(tools, image=self.header_icon,
+                                   bg=self.palette["bg"], borderwidth=0)
+        self.brand_icon.pack(side="left", padx=(0, 7))
+        self.title_label = self._label(tools, "YT-Duo", "hero")
+        self.title_label.pack(side="left")
+        self.close_button = self.minimize_button = None
+        if self.chrome:
+            self.close_button = widgets.Button(tools, "×", self.on_close,
+                self.palette, self.fonts, kind="danger", width=34, height=30,
+                font_key="button", padding=(0, 0))
+            self.close_button.pack(side="right", padx=(6, 0))
+            self.minimize_button = widgets.Button(tools, "−", self.chrome.minimize,
+                self.palette, self.fonts, kind="ghost", width=34, height=30, padding=(0, 0))
+            self.minimize_button.pack(side="right", padx=(6, 0))
+        self.theme_button = widgets.Button(tools, "Themes ▾", self.show_themes,
+            self.palette, self.fonts, kind="ghost", height=30, padding=(10, 0))
+        self.theme_button.pack(side="right", padx=(6, 0))
+        self.settings_button = widgets.Button(tools, "Options ▾", self.toggle_settings,
+            self.palette, self.fonts, kind="ghost", height=30, padding=(10, 0))
+        self.settings_button.pack(side="right", padx=(12, 0))
+        self.subtitle = self._label(row,
+            "Download YouTube videos in the best available quality.", "subtitle", "text_dim")
         self.subtitle.pack(anchor="w")
-
-        right = tk.Frame(row, bg=self.palette["bg"])
-        right.pack(side="right")
-        self.theme_button = widgets.IconButton(
-            right, "\u263d" if self.theme_name == "light" else "\u2600",
-            self.toggle_theme, self.palette, size=34)
-        self.theme_button.pack(side="right")
-        self.settings_button = widgets.Button(
-            right, "Options", self.toggle_settings, self.palette, self.fonts,
-            kind="ghost", height=34)
-        self.settings_button.pack(side="right", padx=(0, 8))
+        if self.chrome:
+            for surface in (row, tools, self.title_label, self.subtitle):
+                self.chrome.bind_drag(surface)
 
     def _build_input(self):
         row = tk.Frame(self.shell, bg=self.palette["bg"])
