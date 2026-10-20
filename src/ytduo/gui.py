@@ -504,12 +504,16 @@ class YtDuoApp:
             row, "Start queue", self.start_queue, self.palette, self.fonts,
             height=34)
         self.cancel_button = widgets.Button(
-            row, "Cancel", self.cancel, self.palette, self.fonts,
-            kind="danger", height=34)
+            self.run_controls, "■", self.cancel, self.palette, self.fonts,
+            kind="danger", height=26, width=30, padding=(0, 0))
+        self.pause_button = widgets.Button(self.run_controls, "Ⅱ", self.toggle_pause,
+            self.palette, self.fonts, kind="ghost", height=26, width=30, padding=(0, 0))
 
         self.queue_hint = self._label(row, "", "small", "text_faint")
 
-        # Activity log (hidden until there is something to say)
+        self.terminal_heading = self._section_heading(self.shell, "Terminal", self.toggle_log)
+        self.terminal_button = self.terminal_heading.disclosure
+        # Auto-open on first activity each run, unless the user hides it.
         self.log_frame = tk.Frame(self.shell, bg=self.palette["bg"])
         self.log = tk.Text(
             self.log_frame, height=6, width=1, wrap="word", state="disabled",
@@ -524,6 +528,7 @@ class YtDuoApp:
         self.log.tag_configure("muted", foreground=self.palette["text_dim"])
         self._log_visible = False
         self._log_has_content = False
+        self._log_user_hidden = False
 
     # ── theme switching ──────────────────────────────────────────────
 
@@ -653,12 +658,26 @@ class YtDuoApp:
     def toggle_settings(self, force=None):
         self.settings_visible = (not self.settings_visible
                                  if force is None else bool(force))
+        if self.settings_visible:
+            self._log_visible = False
+            self.terminal_button.set_text("Terminal ▸")
+            self.terminal_button.set_active(False)
+        self.settings_button.set_text("Options ▴" if self.settings_visible else "Options ▾")
+        self.settings_button.set_active(self.settings_visible)
         self._repack()
         self._autosize()
 
     def toggle_log(self, force=None):
         self._log_visible = (not self._log_visible
                              if force is None else bool(force))
+        if self._log_visible:
+            self.settings_visible = False
+            self.settings_button.set_text("Options ▾")
+            self.settings_button.set_active(False)
+        if force is None:
+            self._log_user_hidden = not self._log_visible
+        self.terminal_button.set_text("Terminal ▾" if self._log_visible else "Terminal ▸")
+        self.terminal_button.set_active(self._log_visible)
         self._repack()
         self._autosize()
 
@@ -683,7 +702,7 @@ class YtDuoApp:
 
         if running is None:
             running = bool(self.worker and self.worker.is_alive())
-        self._actions_visible = bool(count or running)
+        self._actions_visible = bool(count and not running)
         self._repack()
         if running and not self._log_visible:
             pass
@@ -729,14 +748,10 @@ class YtDuoApp:
         self.log.insert("end", text + "\n", tag)
         self.log.see("end")
         self.log.configure(state="disabled")
-        lines = int(self.log.index("end-1c").split(".")[0])
-        wanted = max(4, min(lines, 12))
-        if int(self.log.cget("height")) != wanted:
-            self.log.configure(height=wanted)
-            self._autosize()
         if not self._log_has_content:
             self._log_has_content = True
-            self.toggle_log(True)
+            if not self._log_user_hidden and not self.settings_visible:
+                self.toggle_log(True)
 
     def clear_log(self):
         self.log.configure(state="normal")
@@ -1402,6 +1417,20 @@ class YtDuoApp:
         if self.bridge.cancelled:
             return
         self.status_label.configure(text="Paused" if data["paused"] and self._pause_requested else "Resuming…")
+
+    def _section_heading(self, parent, title, command=None):
+        row = tk.Frame(parent, bg=self.palette["bg"])
+        if command:
+            button = widgets.Button(row, title + " ▸", command, self.palette, self.fonts,
+                kind="ghost", height=26, font_key="small", padding=(8, 0))
+            button.pack(side="left", padx=(0, 10))
+            row.disclosure = button
+        else:
+            self._label(row, title, "small", "text_dim").pack(side="left", padx=(0, 10))
+        rule = tk.Frame(row, height=1, bg=self.palette["border"])
+        rule._section_rule = True
+        rule.pack(side="left", fill="x", expand=True)
+        return row
 
 
 def engine_split_urls(text):
