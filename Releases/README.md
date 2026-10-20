@@ -12,7 +12,7 @@ Windows builds bundle Python/Tk. Setup installs for the current user with Start 
 
 Unix launchers embed app source and require Python 3.10+, Tkinter, `yt-dlp[default]`, FFmpeg, FFprobe and Deno. Run `sh YT-Duo.sh` on Linux; use `chmod +x YT-Duo.command` then double-click on macOS, or run with `sh`. Set `YTDUO_PYTHON` to select Python. Native Unix app bundles/installers are not provided.
 
-Verify files against [SHA256SUMS.txt](SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
+Verify files against [SHA256SUMS.txt](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.0/SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
 
 ## Dependencies
 

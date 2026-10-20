@@ -88,6 +88,7 @@ class NativeDragTests(unittest.TestCase):
 class NativeFolderTests(unittest.TestCase):
     def test_helper_failure_never_changes_live_dll_state_and_browser_can_retry(self):
         with mock.patch.object(desktop.sys, "frozen", True, create=True), \
+             mock.patch.object(desktop.sys, "platform", "win32"), \
              mock.patch.dict(desktop.os.environ, {"YTDUO_SHELL_HELPER": r"C:\cache\helper.exe", "_PYI_ARCHIVE_FILE": "private", "TCL_LIBRARY": "private"}), \
              mock.patch.object(desktop.os.path, "isfile", return_value=True), \
              mock.patch.object(desktop, "shell_environment") as mutate, \

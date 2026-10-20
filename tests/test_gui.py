@@ -408,7 +408,9 @@ class SaveDestination(GuiTestCase):
         self.assertEqual(YtDuoApp._short_path("downloads"), "downloads")
 
     def test_window_width_is_narrower(self):
-        self.assertLessEqual(self.tk.winfo_width(), 660)
+        # Linux fallback fonts have different metrics from Windows Segoe UI.
+        self.assertLessEqual(self.tk.winfo_width(), 660 if os.name == "nt" else 800)
+        self.assertLessEqual(self.app.shell.winfo_reqwidth(), self.tk.winfo_width())
 
 
 class WindowConstruction(GuiTestCase):
