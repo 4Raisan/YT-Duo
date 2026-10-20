@@ -1,0 +1,1 @@
+Installed by YT-Duo Setup. User settings and downloads are stored in %LOCALAPPDATA%\YT-Duo\data, independently of the application files.
