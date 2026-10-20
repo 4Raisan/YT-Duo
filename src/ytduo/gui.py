@@ -1261,7 +1261,7 @@ class YtDuoApp:
     def _maybe_auto_download(self):
         if (self._destroyed or not self.auto_download_var.get()
                 or self._preview_info is None or self._link_status_color != "success"
-):
+                or self._auto_generation == self._preview_generation):
             return
         # Consume before starting: re-entrant Tk updates and repeated service
         # events must never start the same paste twice.
