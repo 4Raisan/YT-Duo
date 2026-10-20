@@ -17,14 +17,14 @@ import sys
 
 DEFAULT_MODE = "best"
 
-#: Environment override for the mode. Named after the project: DOWNY_MODE.
-ENV_MODE = "DOWNY_MODE"
+#: Environment override for the mode. Named after the project: YTDUO_MODE.
+ENV_MODE = "YTDUO_MODE"
 
 #: Legacy name accepted for backward compatibility, with a warning.
-LEGACY_ENV_MODE = "DUNY_MODE"
+LEGACY_ENV_MODE = "DOWNY_MODE"
 
 DEFAULT_SUBDIRS = {
-    "output": "downloads",
+    "output": "YT-Duo Downloads",
     "video": "video",
     "audio": "audio",
     "recycle": "recycle",
@@ -38,9 +38,46 @@ DEFAULT_RECYCLE_MAX_BYTES = 4 * 1024**3
 
 
 def project_root():
-    """The folder containing the ``ytduo`` package, resolved absolutely."""
+    """The folder the launcher treats as the working root.
+
+    Resolves in this order:
+      1. ``YTDUO_HOME`` -- an explicit override (used by the packaged app).
+      2. The frozen bundle's folder, when running as a PyInstaller exe.
+      3. The source tree root, whether the package sits at the top level or
+         under ``src/`` as it does in this repository.
+    """
+    override = os.environ.get("YTDUO_HOME")
+    if override:
+        return os.path.abspath(override)
+
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.dirname(here)
+    parent = os.path.dirname(here)
+    # src/ytduo/ -> repository root is one level above src/
+    if os.path.basename(parent).lower() == "src":
+        return os.path.dirname(parent)
+    return parent
+
+
+def user_downloads_folder():
+    """Respect the Windows Downloads known folder, including redirected paths."""
+    if sys.platform == "win32":
+        import ctypes
+        import uuid
+        folder_id = ctypes.create_string_buffer(uuid.UUID("374DE290-123F-4565-9164-39C4925E467B").bytes_le)
+        output = ctypes.c_wchar_p()
+        shell = ctypes.WinDLL("shell32", use_last_error=True)
+        shell.SHGetKnownFolderPath.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+        if shell.SHGetKnownFolderPath(folder_id, 0, None, ctypes.byref(output)) == 0:
+            try:
+                return output.value
+            finally:
+                ole = ctypes.WinDLL("ole32")
+                ole.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+                ole.CoTaskMemFree(ctypes.cast(output, ctypes.c_void_p))
+    return os.path.join(os.path.expanduser("~"), "Downloads")
 
 
 class Settings:
@@ -81,7 +118,10 @@ class Settings:
         self.mode = mode
         self.link_file = self._abs(link_file)
         self.config_file = self._abs(config_file)
-        self.output_dir = self._abs(output_dir or DEFAULT_SUBDIRS["output"])
+        default_output = DEFAULT_SUBDIRS["output"]
+        if not output_dir and root is None and os.environ.get("YTDUO_INSTALLED") == "1":
+            default_output = os.path.join(user_downloads_folder(), default_output)
+        self.output_dir = self._abs(output_dir or default_output)
         self.video_dir = self._abs(video_dir or DEFAULT_SUBDIRS["video"])
         self.audio_dir = self._abs(audio_dir or DEFAULT_SUBDIRS["audio"])
         self.recycle_dir = self._abs(recycle_dir or DEFAULT_SUBDIRS["recycle"])
@@ -114,6 +154,10 @@ class Settings:
         return path if os.path.isabs(path) else os.path.join(self.root, path)
 
     @property
+    def media_output_dir(self):
+        return self.output_dir
+
+    @property
     def archive_file(self):
         """yt-dlp's download archive -- what already succeeded.
 
@@ -128,7 +172,7 @@ class Settings:
 
     @property
     def work_dirs(self):
-        return (self.output_dir, self.video_dir, self.audio_dir, self.recycle_dir)
+        return (self.output_dir, self.media_output_dir, self.video_dir, self.audio_dir)
 
     def ensure_dirs(self):
         """Create the working folders. Called by the front-end, not on import."""
@@ -172,10 +216,6 @@ class Settings:
             f"output_dir={self.output_dir!r})"
         )
 
-    @property
-    def media_output_dir(self):
-        return self.output_dir
-
 
 def read_config_file(path):
     """Read config.json, tolerating absence and corruption."""
@@ -200,7 +240,7 @@ def write_config(path, data):
 
 
 def resolve_mode(cli_mode=None, config=None, environ=None):
-    """Precedence: explicit CLI flag > config.json > DOWNY_MODE > default."""
+    """Precedence: explicit CLI flag > config.json > YTDUO_MODE > default."""
     if cli_mode:
         return cli_mode
     config = config or {}

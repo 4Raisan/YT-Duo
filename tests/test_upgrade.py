@@ -159,3 +159,18 @@ class MusicPipeline(unittest.TestCase):
                 else:
                     with self.assertRaises(engine.ValidationError):
                         engine.verify_audio_output("x.mp3", FORMATS[2], settings)
+
+
+class FolderPolicy(unittest.TestCase):
+    pass
+
+    def test_installed_and_portable_defaults_and_custom_destinations(self):
+        from ytduo import config
+        with mock.patch.object(config, "project_root", return_value=os.path.abspath("test-data")), \
+             mock.patch.object(config, "user_downloads_folder", return_value=os.path.abspath("user-downloads")), \
+             mock.patch.dict(os.environ, {"YTDUO_INSTALLED": "1"}):
+            self.assertEqual(Settings().output_dir, os.path.abspath("user-downloads/YT-Duo Downloads"))
+            custom = Settings(output_dir=os.path.abspath("custom"), media_type="audio")
+            self.assertEqual(custom.media_output_dir, os.path.abspath("custom/Audio"))
+            with mock.patch.dict(os.environ, {"YTDUO_INSTALLED": "0"}):
+                self.assertEqual(Settings().output_dir, os.path.abspath("test-data/YT-Duo Downloads"))
