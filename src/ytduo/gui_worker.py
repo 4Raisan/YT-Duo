@@ -23,6 +23,8 @@ class EventBridge:
     def __init__(self):
         self._queue = queue.Queue()
         self._cancel = threading.Event()
+        self._condition = threading.Condition()
+        self._paused = False
 
     # -- worker side --
 
@@ -58,6 +60,25 @@ class EventBridge:
                 handler(name, payload)
             except Exception:  # noqa: BLE001 - a bad handler must not kill the pump
                 pass
+
+    def request_pause(self):
+        with self._condition:
+            self._paused = True
+
+    def request_resume(self):
+        with self._condition:
+            self._paused = False
+            self._condition.notify_all()
+
+    def checkpoint(self):
+        """Pause only the worker at existing engine checkpoints; Stop wakes it."""
+        with self._condition:
+            if self._paused and not self.cancelled:
+                self.emit("pause_state", {"paused": True})
+                while self._paused and not self.cancelled:
+                    self._condition.wait()
+                self.emit("pause_state", {"paused": False})
+        return self.cancelled
 
 
 class Worker(threading.Thread):
