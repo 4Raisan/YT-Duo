@@ -80,3 +80,9 @@ Frozen GUI/config/engine/theme/widgets code and both Unix payloads matched curre
 Fixed incremental startup rendering. The root is withdrawn before construction and layout measurements. The completed window maps at zero opacity while native frame events and geometry settle, then becomes opaque. There is no artificial startup delay.
 
 All 283 offline tests passed. A real Tk main-entry regression records that mapping happens only after construction and at zero opacity, then checks that visible controls and dimensions remain stable across subsequent event processing. The rebuilt Windows portable was launched and inspected; minimize/restore and close were exercised. Setup installed the byte-identical portable payload and uninstalled cleanly. Frozen GUI and Unix payloads matched current source; all four release checksums passed. Native Unix startup remains unverified.
+
+## Publication verification
+
+GitHub's Windows runner exposed an Options overflow at 125% text size on a short screen. The app now removes extra section spacing only when the queue's compact height is insufficient, then restores normal spacing when space is available. Text size and controls remain unchanged. A regression forces the constrained layout and checks restoration.
+
+The final application code passed 284 offline tests locally and on GitHub's Windows runner. The same successful workflow built the portable EXE, Setup, and Unix launchers. Release files and SHA256SUMS.txt were synchronized from those CI artifacts. The release tag adds only this publication record and the checksum update to the tested application code. Native macOS/Linux execution and live media downloads remain unverified for this publication.
