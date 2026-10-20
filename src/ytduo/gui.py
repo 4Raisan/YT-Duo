@@ -193,10 +193,12 @@ class YtDuoApp:
             widget.pack(fill="x", padx=theme.PAD, pady=(14, theme.PAD))
 
     def _label(self, parent, text, font_key="body", color_key="text", bg_key=None):
-        return tk.Label(
+        label = tk.Label(
             parent, text=text, bg=self.palette[bg_key or "bg"],
             fg=self.palette[color_key], font=self.fonts[font_key],
             anchor="w", highlightthickness=0, bd=0)
+        label._font_key = font_key
+        return label
 
     def _build_header(self):
         row = tk.Frame(self.shell, bg=self.palette["bg"])
@@ -1474,6 +1476,38 @@ class YtDuoApp:
 
     def select_theme(self, name):
         self.apply_theme(name)
+        self._save_settings()
+
+    def apply_font_scale(self, scale, save=True):
+        self.font_scale = scale if scale in (90, 100, 110, 125) else 100
+        self.fonts = theme.build_fonts(set(tkfont.families()), self.font_scale)
+        self.font_scale_var.set(f"{self.font_scale}%")
+        def walk(parent):
+            for child in parent.winfo_children():
+                if hasattr(child, "set_fonts"):
+                    child.set_fonts(self.fonts)
+                elif hasattr(child, "_font_key"):
+                    child.configure(font=self.fonts[child._font_key])
+                walk(child)
+        walk(self.root)
+        for widget, key in ((self.url_entry, "entry"), (self.queue_list, "small"),
+                            (self.log, "mono"), (self.status_label, "body_bold"),
+                            (self.archive_check, "small"), (self.cookies_combo, "small"),
+                            (self.auto_download_check, "small"),
+                            (self.scale_menu, "small")):
+            widget.configure(font=self.fonts[key])
+        for check in self.preference_checks:
+            check.configure(font=self.fonts["small"])
+        for menu in (self.cookies_combo["menu"], self.scale_menu["menu"]):
+            menu.configure(font=self.fonts["small"])
+        self._layout_input()
+        self.apply_theme(self.theme_name)
+        self._autosize()
+        if save:
+            self._save_settings()
+
+    def _toggle_topmost(self):
+        self.root.attributes("-topmost", bool(self.topmost_var.get()))
         self._save_settings()
 
 

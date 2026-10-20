@@ -86,12 +86,12 @@ def _pick_family(candidates, available):
     return candidates[-1]
 
 
-def build_fonts(available_families):
+def build_fonts(available_families, scale=100):
     """Return a dict of (family, size, weight) tuples tuned for this machine."""
     display = _pick_family(_DISPLAY_CANDIDATES, available_families)
     text = _pick_family(_TEXT_CANDIDATES, available_families)
     mono = _pick_family(_MONO_CANDIDATES, available_families)
-    return {
+    fonts = {
         "hero": (display, 22, "bold"),
         "title": (display, 13, "bold"),
         "subtitle": (text, 10),
@@ -103,6 +103,9 @@ def build_fonts(available_families):
         "entry": (text, 12),
         "mono": (mono, 9),
     }
+    scale = scale if scale in (90, 100, 110, 125) else 100
+    return {key: (value[0], max(8, round(value[1] * scale / 100)), *value[2:])
+            for key, value in fonts.items()}
 
 
 # ── Geometry ─────────────────────────────────────────────────────────
