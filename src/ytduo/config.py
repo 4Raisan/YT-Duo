@@ -12,6 +12,9 @@ working directory, so running from anywhere behaves identically.
 """
 
 import json
+import hashlib
+import errno
+import shutil
 import os
 import sys
 
@@ -25,10 +28,74 @@ LEGACY_ENV_MODE = "DOWNY_MODE"
 
 DEFAULT_SUBDIRS = {
     "output": "YT-Duo Downloads",
-    "video": "video",
-    "audio": "audio",
-    "recycle": "recycle",
+    "video": ".ytduo/work/video",
+    "audio": ".ytduo/work/audio",
+    "recycle": ".ytduo/work/recycle",
 }
+
+
+def hide_private_directory(path):
+    """Dot folders are hidden on Unix; mark only this app folder on Windows."""
+    if os.name == "nt":
+        import ctypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetFileAttributesW.argtypes = [ctypes.c_wchar_p]
+        kernel.GetFileAttributesW.restype = ctypes.c_uint
+        kernel.SetFileAttributesW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint]
+        attributes = kernel.GetFileAttributesW(path)
+        if attributes != 0xFFFFFFFF:
+            kernel.SetFileAttributesW(path, attributes | 2)
+
+
+def _move_legacy(source, destination):
+    """Retain every file, including collisions and manually retained copies."""
+    if not os.path.exists(source) or os.path.islink(source) or getattr(os.path, "isjunction", lambda _: False)(source):
+        return
+    candidate = destination
+    counter = 2
+    while os.path.exists(candidate):
+        candidate = destination + ".previous-" + str(counter)
+        counter += 1
+    os.makedirs(os.path.dirname(candidate), exist_ok=True)
+    try:
+        os.rename(source, candidate)
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+        shutil.move(source, candidate)
+
+
+def migrate_legacy_state(settings):
+    """Move recognized GUI state only; never sweep generic desktop folders."""
+    legacy = os.path.join(settings.root, "config.json")
+    if os.path.abspath(legacy) == os.path.abspath(settings.config_file):
+        return
+    saved = read_config_file(legacy)
+    if not {"output_dir", "theme"}.issubset(saved):
+        return
+    os.makedirs(settings.state_dir, exist_ok=True)
+    hide_private_directory(settings.state_dir)
+    for name in ("video", "audio", "recycle"):
+        source = os.path.join(settings.root, name)
+        output = settings._abs(saved["output_dir"]) if isinstance(saved["output_dir"], str) else settings.output_dir
+        try:
+            if os.path.commonpath([source, output]) == source:
+                continue  # A chosen media destination is not a work dir.
+        except ValueError:
+            pass  # Portable app and chosen Downloads folder can use different drives.
+        _move_legacy(source,
+                     os.path.join(settings.state_dir, "work", name))
+    _move_legacy(legacy, settings.config_file)
+
+
+def read_user_config(settings):
+    try:
+        migrate_legacy_state(settings)
+    except OSError:
+        pass  # Keep existing preferences usable on read-only removable media.
+    if os.path.exists(settings.config_file):
+        return read_config_file(settings.config_file)
+    return read_config_file(os.path.join(settings.root, "config.json"))
 
 #: Recycle bin retention. Intermediates are kept so an interrupted run can
 #: resume cheaply, but they are a cache, not an archive: cap both age and
@@ -92,7 +159,7 @@ class Settings:
         root=None,
         mode=DEFAULT_MODE,
         link_file="links.txt",
-        config_file="config.json",
+        config_file=".ytduo/config.json",
         output_dir=None,
         video_dir=None,
         audio_dir=None,
@@ -113,8 +180,10 @@ class Settings:
         media_type="video",
         audio_format="original",
         audio_bitrate=None,
+        numbered=None,
     ):
         self.root = os.path.abspath(root or project_root())
+        self.state_dir = os.path.join(self.root, ".ytduo")
         self.mode = mode
         self.link_file = self._abs(link_file)
         self.config_file = self._abs(config_file)
@@ -145,6 +214,7 @@ class Settings:
         self.media_type = media_type
         self.audio_format = audio_format
         self.audio_bitrate = int(audio_bitrate) if audio_bitrate is not None else None
+        self.numbered = numbered
         if self.audio_bitrate not in (None, 128, 192, 256, 320):
             raise ValueError("audio bitrate must be 128, 192, 256, 320 or best")
         if self.audio_bitrate and audio_format != "mp3":
@@ -159,16 +229,10 @@ class Settings:
 
     @property
     def archive_file(self):
-        """yt-dlp's download archive -- what already succeeded.
-
-        Kept inside the output folder so "already downloaded" always means
-        "already downloaded *here*". A single shared archive would make a
-        changed output directory skip everything silently.
-        """
-        suffix = "" if self.media_type == "video" else f"-audio-{self.audio_format}"
-        if self.media_type == "audio" and self.audio_bitrate:
-            suffix += f"-{self.audio_bitrate}k"
-        return os.path.join(self.output_dir, f".YT-Duo{suffix}-archive.txt")
+        """Private completion history scoped to the chosen media destination."""
+        destination = os.path.normcase(os.path.abspath(self.output_dir))
+        key = hashlib.sha256(destination.encode("utf-8")).hexdigest()[:24]
+        return os.path.join(self.state_dir, "history", key + ".txt")
 
     @property
     def work_dirs(self):
@@ -176,8 +240,25 @@ class Settings:
 
     def ensure_dirs(self):
         """Create the working folders. Called by the front-end, not on import."""
+        os.makedirs(self.state_dir, exist_ok=True)
+        hide_private_directory(self.state_dir)
         for folder in self.work_dirs:
             os.makedirs(folder, exist_ok=True)
+        os.makedirs(os.path.dirname(self.archive_file), exist_ok=True)
+        # Old URL-only records cannot establish a matching format/quality.
+        # Preserve them privately instead of treating them as exact matches.
+        try:
+            legacy_names = os.listdir(self.output_dir)
+        except OSError:
+            legacy_names = []
+        for name in legacy_names:
+            if name.startswith(".YT-Duo") and name.endswith("-archive.txt"):
+                try:
+                    _move_legacy(os.path.join(self.output_dir, name),
+                        os.path.join(self.state_dir, "history", "legacy-" +
+                                     os.path.basename(self.archive_file) + "-" + name))
+                except OSError:
+                    pass  # An old read-only history must not block a new download.
 
     def replace(self, **changes):
         """Return a copy with some fields changed (used by tests)."""
@@ -206,6 +287,7 @@ class Settings:
             "media_type": self.media_type,
             "audio_format": self.audio_format,
             "audio_bitrate": self.audio_bitrate,
+            "numbered": self.numbered,
         }
         fields.update(changes)
         return Settings(**fields)
@@ -233,6 +315,8 @@ def write_config(path, data):
     """Persist settings atomically so a crash cannot truncate the file."""
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
+    if os.path.basename(folder) == ".ytduo":
+        hide_private_directory(folder)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, sort_keys=True)

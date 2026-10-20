@@ -482,13 +482,14 @@ def recycle(filepath, settings):
 
 
 def clear_recycle(settings):
-    """Remove only the application's dedicated legacy recycle directory."""
+    """Remove only the private recycle directory, never linked work paths."""
     target = os.path.abspath(settings.recycle_dir)
-    expected = os.path.abspath(os.path.join(settings.root, "recycle"))
+    expected = os.path.abspath(os.path.join(settings.state_dir, "work", "recycle"))
     if os.path.normcase(target) != os.path.normcase(expected):
         raise OSError("Refusing to clean a recycle folder outside the application data root")
-    if os.path.islink(target) or getattr(os.path, "isjunction", lambda p: False)(target):
-        raise OSError("Refusing to clean a linked recycle folder")
+    for parent in (settings.state_dir, os.path.dirname(target), target):
+        if os.path.islink(parent) or getattr(os.path, "isjunction", lambda p: False)(parent):
+            raise OSError("Refusing to clean a linked recycle folder")
     if os.path.isdir(target):
         shutil.rmtree(target)
 

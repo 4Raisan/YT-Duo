@@ -26,7 +26,7 @@ from tkinter import messagebox
 
 from . import __version__, engine, selector, theme, widgets, updates, desktop
 from .cli import extract_urls
-from .config import Settings, read_config_file, write_config
+from .config import Settings, read_config_file, write_config, read_user_config
 from .gui_worker import EventBridge, Worker
 
 POLL_MS = 80
@@ -116,7 +116,11 @@ class YtDuoApp:
         return Settings().config_file
 
     def _load_settings(self):
-        self.saved = read_config_file(self._config_path())
+        settings = Settings()
+        if self._config_path() == settings.config_file:
+            self.saved = read_user_config(settings)
+        else:
+            self.saved = read_config_file(self._config_path())
 
     def _save_settings(self):
         data = dict(self.saved)

@@ -331,7 +331,8 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         return gui_main()
 
     out = sys.stdout
-    file_config = read_config_file(Settings().config_file)
+    from .config import read_user_config
+    file_config = read_user_config(Settings())
     mode = args.mode or resolve_mode(None, file_config)
     if mode not in selector.MODES:
         parser.error(f"invalid mode {mode!r} from config (choose from "
