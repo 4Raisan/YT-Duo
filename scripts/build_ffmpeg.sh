@@ -3,7 +3,7 @@
 set -euo pipefail
 project="$(pwd)"
 source_dir="$(python -c 'from scripts.build_release import ffmpeg_source_dir; print(ffmpeg_source_dir().as_posix())')"
-version="$(python -c 'from scripts.build_release import version; print(version())')"
+version="$(python -c 'import json; from pathlib import Path; print(json.loads(Path("scripts/windows-tools.json").read_text())[0]["version"])')"
 output="$project/build/minimal-ffmpeg"
 mkdir -p "$output/licenses/ffmpeg"
 cd "$source_dir"
