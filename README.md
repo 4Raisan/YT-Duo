@@ -5,6 +5,10 @@
 
 A desktop app and command-line tool for downloading **videos or music**, powered by yt-dlp and FFmpeg.
 
+<p align="center">
+  <img src="docs/assets/app-preview.png" width="720" alt="YT-Duo desktop preview showing video quality selection and a completed download">
+</p>
+
 ## Download
 
 **v4.6.3 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.3)**
