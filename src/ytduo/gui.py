@@ -875,7 +875,6 @@ class YtDuoApp:
     def download_single(self):
         urls = engine_split_urls(self.url_var.get())
         if not urls:
-            messagebox.showinfo("YT-Duo", "Paste a video link first.")
             return
 
         # A run is already going: queue these instead of refusing them, so
@@ -895,8 +894,8 @@ class YtDuoApp:
             self._refresh_queue_ui()
             self.start_queue()
             return
-        self._start([urls[0]])
-        self.url_var.set("")
+        if self._start([urls[0]]):
+            self.url_var.set("")
 
     def start_queue(self):
         urls = self.queue_items()
@@ -1064,6 +1063,8 @@ class YtDuoApp:
         self.status_label.flash(text, "danger" if (failed or cancelled) else "success")
         self.detail_label.configure(text="")
         self.append_log(text, "error" if (failed or cancelled) else "ok")
+        if completed and not cancelled and self.open_after_var.get() and self.current_output:
+            self._open_folder_action(os.path.dirname(self.current_output))
 
     def _on_worker_cancelled(self, d):
         self._finish()
