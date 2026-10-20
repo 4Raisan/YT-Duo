@@ -777,13 +777,11 @@ class YtDuoApp:
             self.output_var.set(chosen)
 
     def open_output(self):
-        path = self.output_var.get()
-        if not os.path.isdir(path):
-            return
-        try:
-            os.startfile(path)  # noqa: S606 - Windows shell open
-        except (AttributeError, OSError):
-            pass
+        raw_path = self.output_var.get().strip() or Settings().output_dir
+        path = os.path.abspath(os.path.expanduser(os.path.expandvars(raw_path)))
+        if self.media_var.get() == "audio":
+            path = os.path.join(path, "Audio")
+        self._open_folder_action(path)
 
     def append_log(self, text, tag="info"):
         self.log.configure(state="normal")
@@ -1557,6 +1555,42 @@ class YtDuoApp:
         self._layout_id = None
         if not self._destroyed:
             self._autosize()
+
+    def _external_action(self, kind, target, action):
+        if self._destroyed or kind in self._external_pending:
+            return
+        self._external_pending.add(kind)
+        bridge = self.service_bridge
+        def work():
+            result = {"kind": kind, "target": target}
+            try:
+                action()
+            except Exception as exc:
+                result["error"] = str(exc)
+            bridge.emit("external_result", result)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_external_result(self, result):
+        self._external_pending.discard(result["kind"])
+        if self._destroyed:
+            return
+        if result.get("error"):
+            title = "Could not open the save folder." if result["kind"] == "folder" else "Could not open your browser."
+            self.append_log(title + " " + result["error"], "error")
+            messagebox.showerror("YT-Duo", title + "\n" + result["target"] + "\n\n" + result["error"], parent=self.root)
+
+    def _open_folder_action(self, path):
+        platform = sys.platform
+        def action():
+            os.makedirs(path, exist_ok=True)
+            if platform == "win32":
+                desktop.open_folder_windows(path)
+            else:
+                command = "open" if platform == "darwin" else "xdg-open"
+                result = subprocess.run([command, path], capture_output=True, text=True, timeout=10)
+                if result.returncode:
+                    raise OSError((result.stderr or "Folder opener failed").strip()[-200:])
+        self._external_action("folder", path, action)
 
 
 def engine_split_urls(text):
