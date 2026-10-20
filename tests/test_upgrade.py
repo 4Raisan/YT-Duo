@@ -499,6 +499,26 @@ class UpgradeGui(GuiTestCase):
         self.assertLessEqual(self.app.shell.winfo_reqheight() + 6,
                              self.tk.winfo_screenheight() - 64)
 
+    def test_options_compact_spacing_on_short_screen_and_restore_after_close(self):
+        with mock.patch.object(self.tk, "winfo_screenheight", return_value=1200):
+            self.app.apply_font_scale(125)
+            self.app.toggle_settings(True)
+            self.app._set_running(True)
+            self.app._set_progress_visible(True)
+            self.app._autosize()
+            normal_height = self.app.shell.winfo_reqheight() + 6
+            with mock.patch.object(self.tk, "winfo_screenheight",
+                                   return_value=normal_height + 64 - 60):
+                self.app._autosize()
+                self.assertTrue(self.app._tight_layout)
+                self.assertLessEqual(self.app.shell.winfo_reqheight() + 6,
+                                     normal_height - 60)
+                self.assertFalse(self.app._log_visible)
+                self.assertEqual(self.app.font_scale, 125)
+                self.app.toggle_settings(False)
+                self.app._autosize()
+                self.assertFalse(getattr(self.app, "_tight_layout", False))
+
     def test_link_hint_is_overlay_and_never_becomes_download_input(self):
         self.assertEqual(self.app.url_var.get(), "")
         self.app._sync_placeholder()

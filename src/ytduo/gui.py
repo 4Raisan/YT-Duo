@@ -262,6 +262,8 @@ class YtDuoApp:
             widget.pack(fill="x", padx=theme.PAD, pady=(8 if compact else 14, 0))
         elif widget is self._actions_row:
             widget.pack(fill="x", padx=theme.PAD, pady=(8, 12) if compact else (14, theme.PAD))
+        if getattr(self, "_tight_layout", False):
+            widget.pack_configure(pady=0)
 
     def _label(self, parent, text, font_key="body", color_key="text", bg_key=None):
         label = tk.Label(
@@ -1175,10 +1177,19 @@ class YtDuoApp:
             # Only one large panel is open. Give its content a compact
             # viewport of its own (queue / log), never a scrolling app page.
             cap = max(260, self.root.winfo_screenheight() - 64)
+            if getattr(self, "_tight_layout", False):
+                self._tight_layout = False
+                self._repack()
             self.queue_list.configure(height=2)
             self.root.update_idletasks()
             if self.settings_visible and self.shell.winfo_reqheight() + 6 > cap:
                 self.queue_list.configure(height=1)
+                self.root.update_idletasks()
+            if self.settings_visible and self.shell.winfo_reqheight() + 6 > cap:
+                # Large fonts on a short screen need less space between
+                # sections, without shrinking text or hiding controls.
+                self._tight_layout = True
+                self._repack()
                 self.root.update_idletasks()
             width = max(self.shell.winfo_reqwidth() + 6, 640)
             height = self.shell.winfo_reqheight() + 6
