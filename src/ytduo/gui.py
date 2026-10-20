@@ -962,8 +962,11 @@ class YtDuoApp:
     def cancel(self):
         if self.worker and self.worker.is_alive():
             self.bridge.request_cancel()
-            self.status_label.configure(text="Cancelling…")
-            self.append_log("Cancel requested.", "error")
+            self._finish_redownload(False)
+            self.pause_button.set_enabled(False)
+            self.cancel_button.set_enabled(False)
+            self.status_label.configure(text="Stopping…")
+            self.append_log("Stop requested.", "error")
 
     # ── event pump ───────────────────────────────────────────────────
 
@@ -975,12 +978,25 @@ class YtDuoApp:
             self._poll_id = None
 
     def destroy(self):
+        self._destroyed = True
+        self.bridge.request_cancel()
+        self._finish_redownload(False)
+        self._preview_generation += 1
+        for timer in (self._preview_id, self._update_start_id, self._layout_id, self._scan_anim_id):
+            if timer:
+                try:
+                    self.root.after_cancel(timer)
+                except tk.TclError:
+                    pass
         for widget in self._all_themed_widgets():
             try:
                 if isinstance(widget, widgets.ProgressBar):
                     widget.stop()
+                if isinstance(widget, widgets.Animated):
+                    widget.stop_animation()
             except tk.TclError:
                 pass
+        self.status_label.stop()
         if getattr(self, "_poll_id", None):
             try:
                 self.root.after_cancel(self._poll_id)

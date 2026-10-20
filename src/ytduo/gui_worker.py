@@ -33,10 +33,31 @@ class EventBridge:
 
     def request_cancel(self):
         self._cancel.set()
+        self.request_resume()
+
+    def request_pause(self):
+        with self._condition:
+            self._paused = True
+
+    def request_resume(self):
+        with self._condition:
+            self._paused = False
+            self._condition.notify_all()
+
+    def checkpoint(self):
+        """Pause only the worker at existing engine checkpoints; Stop wakes it."""
+        with self._condition:
+            if self._paused and not self.cancelled:
+                self.emit("pause_state", {"paused": True})
+                while self._paused and not self.cancelled:
+                    self._condition.wait()
+                self.emit("pause_state", {"paused": False})
+        return self.cancelled
 
     def reset(self):
         """Prepare for a fresh run."""
         self._cancel.clear()
+        self.request_resume()
         while True:
             try:
                 self._queue.get_nowait()
@@ -60,25 +81,6 @@ class EventBridge:
                 handler(name, payload)
             except Exception:  # noqa: BLE001 - a bad handler must not kill the pump
                 pass
-
-    def request_pause(self):
-        with self._condition:
-            self._paused = True
-
-    def request_resume(self):
-        with self._condition:
-            self._paused = False
-            self._condition.notify_all()
-
-    def checkpoint(self):
-        """Pause only the worker at existing engine checkpoints; Stop wakes it."""
-        with self._condition:
-            if self._paused and not self.cancelled:
-                self.emit("pause_state", {"paused": True})
-                while self._paused and not self.cancelled:
-                    self._condition.wait()
-                self.emit("pause_state", {"paused": False})
-        return self.cancelled
 
 
 class Worker(threading.Thread):
