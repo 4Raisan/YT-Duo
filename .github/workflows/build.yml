@@ -38,6 +38,8 @@ jobs:
         shell: msys2 {0}
         run: bash scripts/build_ffmpeg.sh
       - run: python scripts/build_release.py --windows --setup --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+      - name: Check real engine paths with the minimal media tools
+        run: python tests/media_smoke.py --ffmpeg build/minimal-ffmpeg/ffmpeg.exe --ffprobe build/minimal-ffmpeg/ffprobe.exe
       - name: Check packaged dependencies without system tools
         shell: pwsh
         run: |
