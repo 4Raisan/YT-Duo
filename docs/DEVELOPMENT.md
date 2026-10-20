@@ -1,0 +1,82 @@
+# Development and packaging
+
+Install with `python -m pip install -e .`. Run offline checks with `python -m unittest discover -s tests -t . -q`.
+
+## Structure
+
+- `src/ytduo/`: application, shared engine, packaged PNG/ICO icons.
+- `scripts/`: release builder, Inno Setup recipe, diagram generator, fixture capture helper.
+- `tests/`: offline regressions, live smoke script, fixtures.
+- `docs/assets/`: approved red branding and self-contained architecture/workflow SVGs.
+- `Releases/`: platform-specific local outputs, checksum manifest, download guide. Compiled downloads are ignored by Git.
+
+Personal settings, queues, downloaded media (including YT-Duo Downloads/), temporary streams, runtime caches, and build files do not belong in Git. Working directories are recreated as needed. No private queue ships with the project.
+
+## Build
+
+```sh
+python -m pip install -e . -r requirements-build.txt
+python scripts/build_release.py
+python scripts/build_release.py --windows
+python scripts/build_release.py --windows --setup --iscc "PATH/TO/ISCC.exe"
+```
+
+Windows must be built on Windows. Artifacts are compiled under `build/release-stage` and published with same-volume atomic renames; do not compile or copy EXEs directly into a custom release directory with inherited integrity labels. Setup requires [Inno Setup 6](https://jrsoftware.org/isdl.php), installed separately. The builder does not download tooling and fails visibly if setup is requested without a compiler. Manual CI builds both Windows variants and uploads artifacts without publishing a release.
+
+PyInstaller creates a directory bundle, then the .NET launcher embeds it into the portable EXE. A small unfrozen shell helper is embedded separately. Folder and GitHub actions run in background threads through that helper with sanitized child environment variables; the frozen Python process never changes its live DLL search directory for those actions. Failures return through the service event bridge and release the pending-action state.
+
+Runtime caches live under `%LOCALAPPDATA%/YT-Duo/runtime`, with a `%TEMP%/YT-Duo/runtime` fallback. Startup probes writability and reports a visible error if neither works; it never extracts beside the EXE or changes filesystem permissions. Hash-addressed versions have shared in-use leases. Under the extraction lock, the launcher can prune older idle versions with recognized leases, while retaining the current version and one other version; active or legacy caches are preserved. The launcher stays alive while its GUI runs to hold the lease. Setup uses the same portable payload with an installation marker; installed data lives independently under LocalAppData/YT-Duo/data, and uninstall preserves it. YTDUO_HOME overrides the data root.
+
+Unix launchers embed Python modules and the PNG icon. They use an existing Python/Tk/yt-dlp environment, not a bundled interpreter. Native macOS/Linux app packages and installers require separate platform builds and are not claimed here.
+
+Regenerate architecture/workflow SVGs with `python scripts/build_diagrams.py`. Approved branding is in docs/assets/yt-duo-logo.png and yt-duo-icon.png; application icons are in src/ytduo/assets.
+
+The play triangle uses bright ivory with a crimson edge for contrast against the red glass. The banner and transparent mark were edited with built-in imagegen using the instruction: change only the central triangle to ivory, preserve the red facets, shape, layout, and typography. PNG/ICO derivatives, diagrams, and release downloads use the same treatment.
+
+## Validation limits
+
+Offline GUI/engine tests stub network requests. Passing tests do not prove live YouTube availability or native macOS execution. Windows downloads are unsigned.
+
+The previous Releases directory inherited a Low mandatory-integrity label. EXEs created there launched with a Low token (S-1-16-4096), while identical diagnostics built normally launched at Medium (S-1-16-8192). Low processes could not write the normal profile/Temp cache or activate the desktop shell reliably. See [Microsoft's integrity-control explanation](https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control). The packaging fix preserves each staged file by renaming it on the same volume, rather than creating a replacement file under the destination's inherited label. No ACLs, integrity labels, or Windows security settings are edited. A regression checks that publication retains the built file's identity.
+
+## Local 4.2.1 verification
+
+The published portable and Setup files no longer carry the Low label. Direct release-path tests passed eight repeated Unicode-folder opens after an expected missing-folder failure, followed by successful GitHub browser activation. The actual packaged GUI opened downloads and GitHub successfully. A deliberate path collision produced a visible Open error; after dismissing it, Star still opened GitHub and Open succeeded again after restoring the test folder. Text-size changes were exercised in the GUI; expanded layouts are repositioned within their monitor work area to keep controls reachable.
+
+The final offline suite passed 262 tests. The final Setup installed the byte-identical portable payload and installation marker into an isolated test directory, then uninstalled cleanly. The final packaged GUI kept the expanded Options panel and footer on screen at 125% text size, then restored 100%. All four release checksums passed; both Unix source payloads and the frozen Windows modules matched the current source. Diagram generation was deterministic and embedded the current icon. Native macOS/Linux execution and live media downloads remain separate checks; Windows downloads remain unsigned.
+
+## Local 4.3.0 verification
+
+The final offline suite passed 270 tests, including verified-paste Auto download, stale/failed result rejection, current music settings, live-queue handoff, preflight retry, independent disclosure state, session-only Terminal hiding, startup sizing before update results, and overflow at a lower window position.
+
+The final packaged Windows GUI was inspected with the saved High Contrast theme and 110% text size. Options shows a persistent active button and labeled separator. Options and Terminal can be opened independently, and scrolling reaches both the Terminal body and footer within the window. The final installer round trip passed; its installed executable matched the final portable SHA-256 exactly. All four release checksums passed, both Unix payloads matched current source, and the frozen Windows module code matched current source.
+
+Auto-download flow is tested with offline metadata and engine boundaries; this run did not download live media. Native macOS/Linux execution remains unverified. Existing user media and portable preferences were preserved.
+
+## Local 4.3.1 verification
+
+Removed the main scrolling viewport. Opening Options closes Terminal; opening Terminal closes Options. First activity does not replace an open Options panel, and hidden logs are retained. Compact spacing, side-by-side preference checkboxes and a short internally scrollable queue keep the options and footer reachable.
+
+All 270 offline tests passed, including mutual exclusion, hidden-log retention, startup sizing and 125% text with a queued item and running download controls. The rebuilt portable GUI was checked at the saved 110% text size: both switching directions worked, Options and the footer fit, and no outer scrollbar appeared. Portable and Setup were rebuilt as 4.3.1; all four distribution checksums passed. User media and preferences were preserved.
+
+## Local 4.4.0 verification
+
+All 274 offline tests passed. New flow coverage checks reopening Terminal for each batch/item, progress-row control placement, cooperative pause/resume with worker progress, Stop while paused, five-second duplicate timeout, explicit redownload approval and Stop while a duplicate decision is pending.
+
+The packaged Windows GUI started with Terminal expanded. An existing archived media link showed the real five-second redownload popup and the aligned Pause/Stop controls. Leaving the popup untouched skipped the item and reported one skipped, zero downloaded. The existing media SHA-256 remained unchanged. No new media was downloaded for this verification. Pause/Resume/Stop worker behavior was verified offline; live FFmpeg suspension is not claimed.
+
+Portable and Setup were rebuilt as 4.4.0. All four distribution checksums passed; frozen GUI, worker and engine code matched current source. The installer installed the byte-identical portable payload into an isolated test folder and uninstalled cleanly. User settings and media were preserved.
+
+## Local 4.5.0 verification
+
+The final offline suite passed 282 tests. Additional assertions verified that successful original-audio and MP3 processing saves under Audio and deletes the source. Coverage includes installer/portable defaults, redirected Downloads resolution, saved custom destinations, one-time legacy-default migration, creation and write-probe failures offering Browse, scoped recycle cleanup, silent empty input, animated scanning, fixed Terminal rows, eight themes and progress-track symbol controls.
+
+The final portable GUI showed its new default and the Audio child for Music. Startup removed the legacy recycle directory. Empty Download stayed silent. The theme menu contained eight choices without Nord; a real paste showed the scanning arc. An existing archived music link showed the compact ten-second prompt and inline pause/stop symbols; timeout skipped the item without downloading media. Terminal height stayed fixed. The final Setup installed a byte-identical portable payload; its launched GUI defaulted to the actual Windows Downloads/YT-Duo Downloads folder. Uninstall passed. Existing media hashes were unchanged.
+
+Frozen GUI/config/engine/theme/widgets code and both Unix payloads matched current source. All four distribution checksums passed. Native Unix execution and live fresh media downloads were not run for this update. Failed/interrupted partial streams can still remain in the temporary video/audio folders; startup cleanup is specifically scoped to recycle.
+
+## Local 4.5.1 verification
+
+Fixed incremental startup rendering. The root is withdrawn before construction and layout measurements. The completed window maps at zero opacity while native frame events and geometry settle, then becomes opaque. There is no artificial startup delay.
+
+All 283 offline tests passed. A real Tk main-entry regression records that mapping happens only after construction and at zero opacity, then checks that visible controls and dimensions remain stable across subsequent event processing. The rebuilt Windows portable was launched and inspected; minimize/restore and close were exercised. Setup installed the byte-identical portable payload and uninstalled cleanly. Frozen GUI and Unix payloads matched current source; all four release checksums passed. Native Unix startup remains unverified.

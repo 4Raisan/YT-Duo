@@ -9,8 +9,32 @@ from contextlib import contextmanager
 import webbrowser
 
 
+def _shell_helper(kind, target):
+    """Run a small clean helper; never mutate the live Python DLL directory."""
+    helper = os.environ.get("YTDUO_SHELL_HELPER", "")
+    if not helper or not os.path.isfile(helper):
+        raise OSError("Desktop helper is missing. Restart using the main YT-Duo download.")
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith(("_PYI_", "PYINSTALLER_"))
+                   and key not in ("TCL_LIBRARY", "TK_LIBRARY")}
+    private = getattr(sys, "_MEIPASS", "")
+    if private:
+        private = os.path.normcase(os.path.abspath(private))
+        environment["PATH"] = os.pathsep.join(part for part in environment.get("PATH", "").split(os.pathsep)
+            if part and not os.path.normcase(os.path.abspath(part)).startswith(private + os.sep)
+            and os.path.normcase(os.path.abspath(part)) != private)
+    result = subprocess.run([helper, kind, target], env=environment,
+        cwd=os.environ.get("SystemRoot", r"C:\Windows"), creationflags=0x08000000,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    if result.returncode:
+        raise OSError(f"Windows could not open {kind} (error 0x{result.returncode & 0xffffffff:08X}).")
 
 
+def open_url(url):
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        _shell_helper("url", url)
+    elif not webbrowser.open(url):
+        raise OSError("The default browser did not accept this link.")
 
 _launch_lock = threading.RLock()
 
@@ -20,8 +44,70 @@ class MonitorInfo(ctypes.Structure):
                 ("work", wintypes.RECT), ("flags", wintypes.DWORD)]
 
 
+def open_folder_windows(path):
+    """Ask the existing desktop shell to navigate to this exact folder."""
+    if getattr(sys, "frozen", False):
+        _shell_helper("folder", path)
+        return
+    shell = ctypes.WinDLL("shell32", use_last_error=True)
+    ole = ctypes.WinDLL("ole32", use_last_error=True)
+    ole.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    ole.CoInitializeEx.restype = ctypes.c_long
+    ole.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    shell.SHParseDisplayName.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_uint32, ctypes.c_void_p]
+    shell.SHParseDisplayName.restype = ctypes.c_long
+    shell.SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, ctypes.c_uint,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_uint32]
+    shell.SHOpenFolderAndSelectItems.restype = ctypes.c_long
+    initialized = ole.CoInitializeEx(None, 2)
+    pidl = ctypes.c_void_p()
+    try:
+        if initialized < 0 and initialized != -2147417850:  # already initialized as MTA
+            raise OSError(f"Windows shell initialization failed (0x{initialized & 0xffffffff:08X})")
+        with shell_environment():
+            result = shell.SHParseDisplayName(path, None, ctypes.byref(pidl), 0, None)
+            if result >= 0:
+                # Zero children would open the PARENT and select the folder.
+                # An empty relative ITEMIDLIST means navigate to the folder itself.
+                empty_child = ctypes.c_ushort(0)
+                children = (ctypes.c_void_p * 1)(ctypes.addressof(empty_child))
+                result = shell.SHOpenFolderAndSelectItems(pidl, 1, children, 0)
+            if result < 0:
+                raise OSError(f"Windows could not open this folder (0x{result & 0xffffffff:08X})")
+    finally:
+        if pidl:
+            ole.CoTaskMemFree(pidl)
+        if initialized >= 0:
+            ole.CoUninitialize()
 
 
+@contextmanager
+def shell_environment():
+    """Do not pass PyInstaller's private DLL directory to Windows Explorer.
+
+    Restore the actual previous directory, including on failed launches.
+    Keep this process-global change confined to the short launch operation.
+    """
+    with _launch_lock:
+        kernel = None
+        previous = None
+        if sys.platform == "win32" and getattr(sys, "frozen", False):
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.GetDllDirectoryW.argtypes = [ctypes.c_uint32, ctypes.c_wchar_p]
+            kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+            size = kernel.GetDllDirectoryW(0, None)
+            buffer = ctypes.create_unicode_buffer(size + 1)
+            kernel.GetDllDirectoryW(len(buffer), buffer)
+            previous = buffer.value or None
+            if not kernel.SetDllDirectoryW(None):
+                raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            yield
+        finally:
+            if kernel is not None:
+                if not kernel.SetDllDirectoryW(previous):
+                    raise ctypes.WinError(ctypes.get_last_error())
 
 
 class WindowChrome:
@@ -128,101 +214,3 @@ class WindowChrome:
             self.user.PostMessageW(self.hwnd, 0x0112, 0xF012, position)
             return "break"
         widget.bind("<ButtonPress-1>", start, add="+")
-
-
-
-
-
-
-def _shell_helper(kind, target):
-    """Run a small clean helper; never mutate the live Python DLL directory."""
-    helper = os.environ.get("YTDUO_SHELL_HELPER", "")
-    if not helper or not os.path.isfile(helper):
-        raise OSError("Desktop helper is missing. Restart using the main YT-Duo download.")
-    environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith(("_PYI_", "PYINSTALLER_"))
-                   and key not in ("TCL_LIBRARY", "TK_LIBRARY")}
-    private = getattr(sys, "_MEIPASS", "")
-    if private:
-        private = os.path.normcase(os.path.abspath(private))
-        environment["PATH"] = os.pathsep.join(part for part in environment.get("PATH", "").split(os.pathsep)
-            if part and not os.path.normcase(os.path.abspath(part)).startswith(private + os.sep)
-            and os.path.normcase(os.path.abspath(part)) != private)
-    result = subprocess.run([helper, kind, target], env=environment,
-        cwd=os.environ.get("SystemRoot", r"C:\Windows"), creationflags=0x08000000,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
-    if result.returncode:
-        raise OSError(f"Windows could not open {kind} (error 0x{result.returncode & 0xffffffff:08X}).")
-
-
-def open_url(url):
-    if sys.platform == "win32" and getattr(sys, "frozen", False):
-        _shell_helper("url", url)
-    elif not webbrowser.open(url):
-        raise OSError("The default browser did not accept this link.")
-
-
-def open_folder_windows(path):
-    """Ask the existing desktop shell to navigate to this exact folder."""
-    if getattr(sys, "frozen", False):
-        _shell_helper("folder", path)
-        return
-    shell = ctypes.WinDLL("shell32", use_last_error=True)
-    ole = ctypes.WinDLL("ole32", use_last_error=True)
-    ole.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-    ole.CoInitializeEx.restype = ctypes.c_long
-    ole.CoTaskMemFree.argtypes = [ctypes.c_void_p]
-    shell.SHParseDisplayName.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_void_p), ctypes.c_uint32, ctypes.c_void_p]
-    shell.SHParseDisplayName.restype = ctypes.c_long
-    shell.SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, ctypes.c_uint,
-        ctypes.POINTER(ctypes.c_void_p), ctypes.c_uint32]
-    shell.SHOpenFolderAndSelectItems.restype = ctypes.c_long
-    initialized = ole.CoInitializeEx(None, 2)
-    pidl = ctypes.c_void_p()
-    try:
-        if initialized < 0 and initialized != -2147417850:  # already initialized as MTA
-            raise OSError(f"Windows shell initialization failed (0x{initialized & 0xffffffff:08X})")
-        with shell_environment():
-            result = shell.SHParseDisplayName(path, None, ctypes.byref(pidl), 0, None)
-            if result >= 0:
-                # Zero children would open the PARENT and select the folder.
-                # An empty relative ITEMIDLIST means navigate to the folder itself.
-                empty_child = ctypes.c_ushort(0)
-                children = (ctypes.c_void_p * 1)(ctypes.addressof(empty_child))
-                result = shell.SHOpenFolderAndSelectItems(pidl, 1, children, 0)
-            if result < 0:
-                raise OSError(f"Windows could not open this folder (0x{result & 0xffffffff:08X})")
-    finally:
-        if pidl:
-            ole.CoTaskMemFree(pidl)
-        if initialized >= 0:
-            ole.CoUninitialize()
-
-
-@contextmanager
-def shell_environment():
-    """Do not pass PyInstaller's private DLL directory to Windows Explorer.
-
-    Restore the actual previous directory, including on failed launches.
-    Keep this process-global change confined to the short launch operation.
-    """
-    with _launch_lock:
-        kernel = None
-        previous = None
-        if sys.platform == "win32" and getattr(sys, "frozen", False):
-            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel.GetDllDirectoryW.argtypes = [ctypes.c_uint32, ctypes.c_wchar_p]
-            kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
-            size = kernel.GetDllDirectoryW(0, None)
-            buffer = ctypes.create_unicode_buffer(size + 1)
-            kernel.GetDllDirectoryW(len(buffer), buffer)
-            previous = buffer.value or None
-            if not kernel.SetDllDirectoryW(None):
-                raise ctypes.WinError(ctypes.get_last_error())
-        try:
-            yield
-        finally:
-            if kernel is not None:
-                if not kernel.SetDllDirectoryW(previous):
-                    raise ctypes.WinError(ctypes.get_last_error())

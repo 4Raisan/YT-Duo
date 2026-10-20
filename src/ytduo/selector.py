@@ -256,6 +256,19 @@ def pick_streams(formats, mode="best", max_height=None):
         return video, None, False
 
 
+def pick_music(formats, mode="best"):
+    """Prefer audio-only; extract audio from a muxed stream if necessary."""
+    try:
+        return pick_audio(formats, mode)
+    except NoSuitableFormat:
+        cfg = _config(mode)
+        pool = [f for f in formats if is_muxed(f) and not is_drm(f)
+                and not is_drc(f) and protocol_rank(f, cfg) > 0]
+        if not pool:
+            raise NoSuitableFormat("no usable audio stream available")
+        return max(pool, key=lambda f: _sort_key(f, cfg, cfg["audio_sort"], True))
+
+
 def available_heights(formats, mode="best"):
     """Distinct resolutions offered, largest first -- for a GUI picker."""
     cfg = _config(mode)
@@ -286,15 +299,3 @@ def _config(mode):
     if mode not in MODES:
         raise ValueError(f"unknown mode {mode!r}; choose from {sorted(MODES)}")
     return MODES[mode]
-
-def pick_music(formats, mode="best"):
-    """Prefer audio-only; extract audio from a muxed stream if necessary."""
-    try:
-        return pick_audio(formats, mode)
-    except NoSuitableFormat:
-        cfg = _config(mode)
-        pool = [f for f in formats if is_muxed(f) and not is_drm(f)
-                and not is_drc(f) and protocol_rank(f, cfg) > 0]
-        if not pool:
-            raise NoSuitableFormat("no usable audio stream available")
-        return max(pool, key=lambda f: _sort_key(f, cfg, cfg["audio_sort"], True))
