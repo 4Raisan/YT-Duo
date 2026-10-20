@@ -1,0 +1,4 @@
+36bdff83b4b4578d9ff14c26e6ff1ecccd5fb62d67c08a1ff89b3c4bdc408123  linux/YT-Duo.sh
+36bdff83b4b4578d9ff14c26e6ff1ecccd5fb62d67c08a1ff89b3c4bdc408123  macos/YT-Duo.command
+6a59c5afd35a681520cf89c59d0323c475b3cbcd8ce1165466a117c8dc5aac21  windows/YT-Duo-Portable.exe
+5823009fabd2f2b2c3b134088a336cb37883497b8df60b7fff0551e0cf1d8d1e  windows/YT-Duo-Setup.exe

@@ -28,6 +28,49 @@ def publish_artifact(source, destination):
     source.replace(destination)
 
 
+def build_unix(output):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted((ROOT / "src/ytduo").glob("*.py")):
+            archive.writestr("ytduo/" + path.name, path.read_bytes())
+        for path in sorted((ROOT / "src/ytduo/assets").glob("*.png")):
+            archive.writestr("ytduo/assets/" + path.name, path.read_bytes())
+    payload = base64.b64encode(buffer.getvalue()).decode("ascii")
+    bootstrap = '''import base64, io, os, signal, sys, tempfile, zipfile
+if sys.version_info < (3, 10):
+    sys.exit("YT-Duo requires Python 3.10 or newer.")
+try:
+    import tkinter, yt_dlp
+except ImportError as exc:
+    sys.exit("Missing dependency: " + str(exc) + "\\nInstall Tkinter and yt-dlp in your selected Python environment.")
+def stop(signum, frame):
+    raise SystemExit(128 + signum)
+for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+    if hasattr(signal, name): signal.signal(getattr(signal, name), stop)
+os.environ.setdefault("YTDUO_HOME", os.path.expanduser("~/YT-Duo"))
+with tempfile.TemporaryDirectory(prefix="yt-duo-") as folder:
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(PAYLOAD))) as archive:
+        archive.extractall(folder)
+    sys.path.insert(0, folder)
+    from ytduo.cli import main
+    raise SystemExit(main(sys.argv[1:] or ["--gui"]))
+'''.replace("PAYLOAD", repr(payload))
+    script = '''#!/bin/sh
+# YT-Duo self-contained source launcher. Python/Tkinter/yt-dlp required.
+set -eu
+PY="${YTDUO_PYTHON:-python3}"
+if ! command -v "$PY" >/dev/null 2>&1; then
+    echo "Install Python 3.10+ or set YTDUO_PYTHON." >&2
+    exit 1
+fi
+exec "$PY" - "$@" <<'YTDUO_SOURCE'
+''' + bootstrap + "YTDUO_SOURCE\n"
+    for name in ("YT-Duo.sh", "YT-Duo.command"):
+        path = output / name
+        path.write_text(script, encoding="utf-8", newline="\n")
+        path.chmod(0o755)
+
+
 def build_windows(output):
     if sys.platform != "win32":
         raise RuntimeError("Build the Windows executable on Windows.")
@@ -64,3 +107,51 @@ def build_windows(output):
         str(ROOT / "scripts/windows_launcher.cs"),
     ], cwd=ROOT, check=True)
 
+
+def checksums(output):
+    lines = []
+    for name in ("linux/YT-Duo.sh", "macos/YT-Duo.command",
+                 "windows/YT-Duo-Portable.exe", "windows/YT-Duo-Setup.exe"):
+        path = output / name
+        if path.is_file():
+            lines.append(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.relative_to(output).as_posix())
+    (output / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--windows", action="store_true")
+    parser.add_argument("--setup", action="store_true", help="Also compile the Windows installer (Inno Setup required).")
+    parser.add_argument("--iscc", help="Path to Inno Setup ISCC.exe")
+    args = parser.parse_args()
+    OUTPUT.mkdir(exist_ok=True)
+    staging = ROOT / "build/release-stage"
+    artifacts = []
+    unix_stage = ROOT / "build/unix"
+    unix_stage.mkdir(parents=True, exist_ok=True)
+    build_unix(unix_stage)
+    for platform, filename in (("linux", "YT-Duo.sh"), ("macos", "YT-Duo.command")):
+        destination = staging / platform
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(unix_stage / filename, destination / filename)
+        artifacts.append(platform + "/" + filename)
+    windows = staging / "windows"
+    if args.windows or args.setup:
+        windows.mkdir(parents=True, exist_ok=True)
+        build_windows(windows)
+        artifacts.append("windows/YT-Duo-Portable.exe")
+    if args.setup:
+        compiler = args.iscc or shutil.which("ISCC.exe")
+        if not compiler:
+            raise RuntimeError("Install Inno Setup and pass --iscc PATH or add ISCC.exe to PATH.")
+        subprocess.run([compiler, "/O" + str(windows),
+                        "/DPortableExePath=" + str(windows / "YT-Duo-Portable.exe"),
+                        str(ROOT / "scripts/windows_setup.iss")], cwd=ROOT, check=True)
+        artifacts.append("windows/YT-Duo-Setup.exe")
+    for name in artifacts:
+        publish_artifact(staging / name, OUTPUT / name)
+    checksums(OUTPUT)
+
+
+if __name__ == "__main__":
+    main()
