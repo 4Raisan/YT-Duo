@@ -478,3 +478,58 @@ class AnimatedLabel(tk.Label):
         self.palette = palette
         self.configure(bg=palette["bg"], fg=palette["text"])
         self._current_fg = palette["text"]
+
+
+class NeonFrame(tk.Frame):
+    """A quiet outer outline with brighter curved green corners. No timers."""
+    def __init__(self, parent, palette):
+        super().__init__(parent, bd=0, highlightthickness=0)
+        self.edges = [tk.Canvas(self, bd=0, highlightthickness=0) for _ in range(4)]
+        self._edge_keys = {}
+        self.edges[0].place(x=24, y=0, relwidth=1, width=-48, height=5)
+        self.edges[1].place(x=24, rely=1, y=-5, relwidth=1, width=-48, height=5)
+        self.edges[2].place(x=0, y=24, relheight=1, height=-48, width=5)
+        self.edges[3].place(relx=1, x=-5, y=24, relheight=1, height=-48, width=5)
+        self.corners = []
+        for right, bottom in ((False, False), (True, False), (False, True), (True, True)):
+            corner = tk.Canvas(self, width=24, height=24, bd=0, highlightthickness=0)
+            corner.place(relx=int(right), rely=int(bottom),
+                         anchor=("s" if bottom else "n") + ("e" if right else "w"))
+            self.corners.append((corner, right, bottom))
+        self.set_palette(palette)
+        for edge in self.edges:
+            edge.bind("<Configure>", lambda event: self._paint_edge(event.widget))
+
+    def _paint_edge(self, edge):
+        w, h = edge.winfo_width(), edge.winfo_height()
+        key = (w, h, self._edge_background, self._edge_neon)
+        if self._edge_keys.get(edge) == key:
+            return
+        self._edge_keys[edge] = key
+        edge.delete("all")
+        points = (0, 2, w, 2) if edge in self.edges[:2] else (2, 0, 2, h)
+        for width, opacity in ((4.2, 0.08), (2.8, 0.18), (1.4, 0.95)):
+            edge.create_line(*points, width=width,
+                fill=theme.mix_alpha(self._edge_neon, self._edge_background, opacity))
+
+    def set_palette(self, palette):
+        background = palette["bg"]
+        neon = "#39ff9b" if background != theme.LIGHT["bg"] else "#087c4b"
+        self.configure(bg=background)
+        self._edge_background, self._edge_neon = background, neon
+        for edge in self.edges:
+            edge.configure(bg=background)
+            self._paint_edge(edge)
+        for corner, right, bottom in self.corners:
+            corner.configure(bg=background)
+            corner.delete("all")
+            angle = {(False, False): 90, (True, False): 0,
+                     (False, True): 180, (True, True): 270}[right, bottom]
+            def point(x, y):
+                return (24-x if right else x, 24-y if bottom else y)
+            for width, opacity in ((5, 0.08), (3, 0.18), (1.4, 1.0)):
+                color = theme.mix_alpha(neon, background, opacity)
+                corner.create_arc(2, 2, 22, 22, start=angle, extent=90,
+                                  style="arc", outline=color, width=width)
+                corner.create_line(*point(12, 2), *point(24, 2), fill=color, width=width)
+                corner.create_line(*point(2, 12), *point(2, 24), fill=color, width=width)

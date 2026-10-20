@@ -71,6 +71,23 @@ class WindowChrome:
         self.user.SetWindowPos(self.hwnd, None, 0, 0, 0, 0, 0x0037)
         self.round_corners()
 
+    def round_corners(self, event=None):
+        if not self.hwnd or (event is not None and event.widget is not self.root):
+            return
+        rect = wintypes.RECT()
+        if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
+            return
+        size = rect.right - rect.left, rect.bottom - rect.top
+        if min(size) < 30 or size == self._rounded_size:
+            return
+        region = self.gdi.CreateRoundRectRgn(0, 0, size[0]+1, size[1]+1, 24, 24)
+        if region:
+            # SetWindowRgn sends Configure; cache first to prevent recursion.
+            self._rounded_size = size
+            if not self.user.SetWindowRgn(self.hwnd, region, True):
+                self.gdi.DeleteObject(region)
+                self._rounded_size = None
+
 
 
 
