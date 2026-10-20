@@ -52,7 +52,23 @@ LIGHT = {
     "shadow": "#c9cede",
 }
 
-PALETTES = {"dark": DARK, "light": LIGHT}
+MIDNIGHT = dict(DARK, bg="#0b1020", surface="#141d33", surface_alt="#1b2740",
+                surface_hi="#243451", accent="#70a5ff", accent_hover="#94bcff",
+                text="#e8f0ff", text_dim="#a7b9d6", text_faint="#8196b8",
+                border="#344661", border_hi="#5b789d")
+CONTRAST = dict(DARK, bg="#000000", surface="#111111", surface_alt="#171717",
+                surface_hi="#303030", text="#ffffff", text_dim="#ffffff",
+                text_faint="#d0d0d0", border="#bbbbbb", border_hi="#ffffff",
+                accent="#ffff00", accent_hover="#ffff80", accent_text="#000000",
+                success="#45ff91", danger="#ff8585", warning="#ffda65")
+GREEN = dict(DARK, bg="#0c1511", surface="#14221a", surface_alt="#1c2b22", border="#2c4737", accent="#4ade80", accent_hover="#86efac", accent_text="#052e16")
+ORANGE = dict(DARK, bg="#18110c", surface="#261b14", surface_alt="#32241b", border="#4d3829", accent="#fb923c", accent_hover="#fdba74", accent_text="#331500")
+PINK = dict(DARK, bg="#170f18", surface="#241725", surface_alt="#302032", border="#4c3050", accent="#f472b6", accent_hover="#f9a8d4", accent_text="#3d0926")
+YELLOW = dict(DARK, bg="#15140c", surface="#222014", surface_alt="#2d2a1b", border="#48422a", accent="#facc15", accent_hover="#fde047", accent_text="#302400")
+PALETTES = {"dark": DARK, "light": LIGHT, "midnight": MIDNIGHT,
+            "green": GREEN, "orange": ORANGE, "pink": PINK, "yellow": YELLOW, "contrast": CONTRAST}
+THEME_LABELS = {"dark": "Dark", "light": "Light", "midnight": "Midnight",
+                "green": "Green", "orange": "Orange", "pink": "Pink", "yellow": "Yellow", "contrast": "High contrast"}
 
 # ── Typography ───────────────────────────────────────────────────────
 

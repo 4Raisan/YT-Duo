@@ -15,6 +15,61 @@ import tkinter.font as tkfont
 from . import theme
 
 
+class NeonFrame(tk.Frame):
+    """A quiet outer outline with brighter curved green corners. No timers."""
+    def __init__(self, parent, palette):
+        super().__init__(parent, bd=0, highlightthickness=0)
+        self.edges = [tk.Canvas(self, bd=0, highlightthickness=0) for _ in range(4)]
+        self._edge_keys = {}
+        self.edges[0].place(x=24, y=0, relwidth=1, width=-48, height=5)
+        self.edges[1].place(x=24, rely=1, y=-5, relwidth=1, width=-48, height=5)
+        self.edges[2].place(x=0, y=24, relheight=1, height=-48, width=5)
+        self.edges[3].place(relx=1, x=-5, y=24, relheight=1, height=-48, width=5)
+        self.corners = []
+        for right, bottom in ((False, False), (True, False), (False, True), (True, True)):
+            corner = tk.Canvas(self, width=24, height=24, bd=0, highlightthickness=0)
+            corner.place(relx=int(right), rely=int(bottom),
+                         anchor=("s" if bottom else "n") + ("e" if right else "w"))
+            self.corners.append((corner, right, bottom))
+        self.set_palette(palette)
+        for edge in self.edges:
+            edge.bind("<Configure>", lambda event: self._paint_edge(event.widget))
+
+    def _paint_edge(self, edge):
+        w, h = edge.winfo_width(), edge.winfo_height()
+        key = (w, h, self._edge_background, self._edge_neon)
+        if self._edge_keys.get(edge) == key:
+            return
+        self._edge_keys[edge] = key
+        edge.delete("all")
+        points = (0, 2, w, 2) if edge in self.edges[:2] else (2, 0, 2, h)
+        for width, opacity in ((4.2, 0.08), (2.8, 0.18), (1.4, 0.95)):
+            edge.create_line(*points, width=width,
+                fill=theme.mix_alpha(self._edge_neon, self._edge_background, opacity))
+
+    def set_palette(self, palette):
+        background = palette["bg"]
+        neon = "#39ff9b" if background != theme.LIGHT["bg"] else "#087c4b"
+        self.configure(bg=background)
+        self._edge_background, self._edge_neon = background, neon
+        for edge in self.edges:
+            edge.configure(bg=background)
+            self._paint_edge(edge)
+        for corner, right, bottom in self.corners:
+            corner.configure(bg=background)
+            corner.delete("all")
+            angle = {(False, False): 90, (True, False): 0,
+                     (False, True): 180, (True, True): 270}[right, bottom]
+            def point(x, y):
+                return (24-x if right else x, 24-y if bottom else y)
+            for width, opacity in ((5, 0.08), (3, 0.18), (1.4, 1.0)):
+                color = theme.mix_alpha(neon, background, opacity)
+                corner.create_arc(2, 2, 22, 22, start=angle, extent=90,
+                                  style="arc", outline=color, width=width)
+                corner.create_line(*point(12, 2), *point(24, 2), fill=color, width=width)
+                corner.create_line(*point(2, 12), *point(2, 24), fill=color, width=width)
+
+
 def _rounded_rect(canvas, x1, y1, x2, y2, radius, **kwargs):
     """Draw a rounded rectangle as a smoothed polygon.
 
@@ -47,6 +102,15 @@ class Animated:
         self._anim_step = 0
         self._anim_from = None
         self._anim_to = None
+        self.bind("<Destroy>", lambda e: self.stop_animation() if e.widget is self else None, add="+")
+
+    def stop_animation(self):
+        if self._anim_id is not None:
+            try:
+                self.after_cancel(self._anim_id)
+            except tk.TclError:
+                pass
+            self._anim_id = None
 
     def animate_to(self, target, steps=6, interval=16):
         current = getattr(self, "_current_color", None)
@@ -105,9 +169,11 @@ class Button(Animated, tk.Canvas):
         self._enabled = True
         self._hover = False
         self._pressed = False
+        self._active = False
         self._font = tkfont.Font(family=fonts[font_key][0],
                                  size=fonts[font_key][1],
                                  weight=fonts[font_key][2] if len(fonts[font_key]) > 2 else "normal")
+        self._fixed_width = width
         self._width = width or self._measure()
         self.configure(width=self._width, height=height, bg=palette["bg"])
         self._current_color = self._base_color()
@@ -122,8 +188,22 @@ class Button(Animated, tk.Canvas):
     def _measure(self):
         return self._font.measure(self.text) + self.padding[0] * 2
 
+    def set_fonts(self, fonts):
+        self.fonts = fonts
+        specification = fonts[self.font_key]
+        self._font.configure(family=specification[0], size=specification[1],
+                             weight=specification[2] if len(specification) > 2 else "normal")
+        if not hasattr(self, "_base_height"):
+            self._base_height = self.height
+        self.height = max(self._base_height, self._font.metrics("linespace") + 10)
+        self._width = max(self._fixed_width or 0, self._measure(), 34 if self.text in ("×", "−") else 0)
+        self.configure(width=self._width, height=self.height)
+        self.repaint()
+
     def _base_color(self):
         p = self.palette
+        if self._active:
+            return theme.mix_alpha(p["accent"], p["surface"], 0.22)
         if self.kind == "primary":
             return p["accent"]
         if self.kind == "danger":
@@ -132,6 +212,8 @@ class Button(Animated, tk.Canvas):
 
     def _hover_color(self):
         p = self.palette
+        if self._active:
+            return theme.mix_alpha(p["accent"], p["surface"], 0.36)
         if self.kind == "primary":
             return p["accent_hover"]
         if self.kind == "danger":
@@ -140,6 +222,8 @@ class Button(Animated, tk.Canvas):
 
     def _text_color(self):
         p = self.palette
+        if self._active and self._enabled:
+            return p["accent"]
         if self.kind == "primary":
             return p["accent_text"] if self._enabled else p["text_faint"]
         if self.kind == "danger":
@@ -174,6 +258,11 @@ class Button(Animated, tk.Canvas):
 
     # -- state --
 
+    def set_active(self, active):
+        """Keep a disclosure's open state visible after the pointer leaves."""
+        self._active = bool(active)
+        self.animate_to(self._hover_color() if self._hover else self._base_color())
+
     def set_enabled(self, enabled):
         self._enabled = bool(enabled)
         self.configure(cursor="hand2" if enabled else "")
@@ -191,6 +280,7 @@ class Button(Animated, tk.Canvas):
         self.repaint()
 
     def set_palette(self, palette):
+        self.stop_animation()
         self.palette = palette
         self.configure(bg=palette["bg"])
         self._current_color = (self._hover_color() if self._hover
@@ -205,7 +295,7 @@ class Button(Animated, tk.Canvas):
         # A pressed button sits 1px lower for tactile feedback.
         offset = 1 if self._pressed else 0
         _rounded_rect(self, 0, offset, w, h - 1 + offset, self.radius,
-                      fill=fill, outline="")
+                      fill=fill, outline=p["accent"] if self._active else "")
         label = f"{self.icon}  {self.text}" if self.icon else self.text
         self.create_text(w / 2, (h - 1) / 2 + offset, text=label,
                          fill=self._text_color(), font=self._font)
@@ -232,6 +322,7 @@ class IconButton(Animated, tk.Canvas):
         self.repaint()
 
     def set_palette(self, palette):
+        self.stop_animation()
         self.palette = palette
         self.configure(bg=palette["bg"])
         self._current_color = palette["bg"]
@@ -270,6 +361,7 @@ class Chip(Animated, tk.Canvas):
         self._width = self._font.measure(text) + pad * 2
         self.configure(width=self._width, bg=palette["bg"])
         self._selected = selected
+        self._available = None
         self._hover = False
         self._current_color = self._rest_color()
         self.bind("<Enter>", lambda _e: self._enter())
@@ -281,7 +373,17 @@ class Chip(Animated, tk.Canvas):
         p = self.palette
         if self._selected:
             return theme.mix_alpha(p["accent"], p["surface"], 0.22)
+        if self._available is True:
+            return theme.mix_alpha(p["success"], p["surface"], 0.12)
         return p["surface"] if self._hover else p["surface_alt"]
+
+    def set_fonts(self, fonts):
+        self.fonts = fonts
+        self._font.configure(family=fonts["chip"][0], size=fonts["chip"][1])
+        self.height = max(28, self._font.metrics("linespace") + 8)
+        self._width = self._font.measure(self.text) + 28
+        self.configure(width=self._width, height=self.height)
+        self.repaint()
 
     def _enter(self):
         self._hover = True
@@ -303,8 +405,15 @@ class Chip(Animated, tk.Canvas):
             self.repaint()
 
     def set_palette(self, palette):
+        self.stop_animation()
         self.palette = palette
         self.configure(bg=palette["bg"])
+        self._current_color = self._rest_color()
+        self.repaint()
+
+    def set_available(self, available):
+        """None = unchecked, True = offered, False = not offered."""
+        self._available = available
         self._current_color = self._rest_color()
         self.repaint()
 
@@ -313,16 +422,17 @@ class Chip(Animated, tk.Canvas):
         w, h = self._width, self.height
         p = self.palette
         outline = p["accent"] if self._selected else p["border"]
+        if self._available is True:
+            outline = p["success"]
+        elif self._available is False and not self._selected:
+            outline = p["border"]
         _rounded_rect(self, 1, 1, w - 1, h - 1, h / 2,
-                      fill=self._current_color, outline=outline, width=1)
+                      fill=self._current_color, outline=outline,
+                      width=2 if self._available is True else 1)
         color = p["accent"] if self._selected else p["text_dim"]
+        if self._available is False and not self._selected:
+            color = p["text_faint"]
         self.create_text(w / 2, h / 2, text=self.text, fill=color, font=self._font)
-
-    def set_available(self, available):
-        """None = unchecked, True = offered, False = not offered."""
-        self._available = available
-        self._current_color = self._rest_color()
-        self.repaint()
 
 
 class ProgressBar(tk.Canvas):
@@ -444,6 +554,15 @@ class AnimatedLabel(tk.Label):
         self.palette = palette
         self._fade_id = None
         self._current_fg = palette["text"]
+        self.bind("<Destroy>", lambda e: self.stop() if e.widget is self else None, add="+")
+
+    def stop(self):
+        if self._fade_id is not None:
+            try:
+                self.after_cancel(self._fade_id)
+            except tk.TclError:
+                pass
+            self._fade_id = None
 
     def flash(self, text, color_key="accent"):
         """Set text and pulse its color toward ``color_key`` then back."""
@@ -471,65 +590,10 @@ class AnimatedLabel(tk.Label):
         else:
             self._fade_id = None
             if out:
-                self.after(220, lambda: self._fade_to(
+                self._fade_id = self.after(220, lambda: self._fade_to(
                     back, back, False, 0, steps))
 
     def set_palette(self, palette):
         self.palette = palette
         self.configure(bg=palette["bg"], fg=palette["text"])
         self._current_fg = palette["text"]
-
-
-class NeonFrame(tk.Frame):
-    """A quiet outer outline with brighter curved green corners. No timers."""
-    def __init__(self, parent, palette):
-        super().__init__(parent, bd=0, highlightthickness=0)
-        self.edges = [tk.Canvas(self, bd=0, highlightthickness=0) for _ in range(4)]
-        self._edge_keys = {}
-        self.edges[0].place(x=24, y=0, relwidth=1, width=-48, height=5)
-        self.edges[1].place(x=24, rely=1, y=-5, relwidth=1, width=-48, height=5)
-        self.edges[2].place(x=0, y=24, relheight=1, height=-48, width=5)
-        self.edges[3].place(relx=1, x=-5, y=24, relheight=1, height=-48, width=5)
-        self.corners = []
-        for right, bottom in ((False, False), (True, False), (False, True), (True, True)):
-            corner = tk.Canvas(self, width=24, height=24, bd=0, highlightthickness=0)
-            corner.place(relx=int(right), rely=int(bottom),
-                         anchor=("s" if bottom else "n") + ("e" if right else "w"))
-            self.corners.append((corner, right, bottom))
-        self.set_palette(palette)
-        for edge in self.edges:
-            edge.bind("<Configure>", lambda event: self._paint_edge(event.widget))
-
-    def _paint_edge(self, edge):
-        w, h = edge.winfo_width(), edge.winfo_height()
-        key = (w, h, self._edge_background, self._edge_neon)
-        if self._edge_keys.get(edge) == key:
-            return
-        self._edge_keys[edge] = key
-        edge.delete("all")
-        points = (0, 2, w, 2) if edge in self.edges[:2] else (2, 0, 2, h)
-        for width, opacity in ((4.2, 0.08), (2.8, 0.18), (1.4, 0.95)):
-            edge.create_line(*points, width=width,
-                fill=theme.mix_alpha(self._edge_neon, self._edge_background, opacity))
-
-    def set_palette(self, palette):
-        background = palette["bg"]
-        neon = "#39ff9b" if background != theme.LIGHT["bg"] else "#087c4b"
-        self.configure(bg=background)
-        self._edge_background, self._edge_neon = background, neon
-        for edge in self.edges:
-            edge.configure(bg=background)
-            self._paint_edge(edge)
-        for corner, right, bottom in self.corners:
-            corner.configure(bg=background)
-            corner.delete("all")
-            angle = {(False, False): 90, (True, False): 0,
-                     (False, True): 180, (True, True): 270}[right, bottom]
-            def point(x, y):
-                return (24-x if right else x, 24-y if bottom else y)
-            for width, opacity in ((5, 0.08), (3, 0.18), (1.4, 1.0)):
-                color = theme.mix_alpha(neon, background, opacity)
-                corner.create_arc(2, 2, 22, 22, start=angle, extent=90,
-                                  style="arc", outline=color, width=width)
-                corner.create_line(*point(12, 2), *point(24, 2), fill=color, width=width)
-                corner.create_line(*point(2, 12), *point(2, 24), fill=color, width=width)

@@ -550,13 +550,14 @@ class YtDuoApp:
         self.palette = theme.PALETTES[name]
         p = self.palette
         self.root.configure(bg=p["bg"])
-        self.theme_button.set_glyph("\u263d" if name == "light" else "\u2600")
+        self.window_edge.set_palette(p)
+
 
         def walk(w):
             cls = w.winfo_class()
             try:
                 if cls == "Frame":
-                    w.configure(bg=p["bg"])
+                    w.configure(bg=p["border"] if getattr(w, "_section_rule", False) else p["bg"])
                 elif cls == "Label":
                     # Labels keep their own foreground role; only the backing
                     # colour follows the parent surface.
@@ -593,6 +594,7 @@ class YtDuoApp:
         # Re-apply the labels whose colour depends on their role, not just
         # the background (the title was being reset to the dim text colour).
         self.title_label.configure(bg=p["bg"], fg=p["text"])
+        self.brand_icon.configure(bg=p["bg"])
         for label in (self.subtitle, self.mode_help, self.detail_label,
                       self.queue_hint):
             label.configure(fg=p["text_dim"], bg=p["bg"])
@@ -600,10 +602,10 @@ class YtDuoApp:
 
         self.advanced_card.configure(bg=p["surface"],
                                      highlightbackground=p["border"])
-        self.output_entry.configure(
-            bg=p["surface_alt"], fg=p["text"],
-            highlightbackground=p["border"], highlightcolor=p["accent"],
-            insertbackground=p["text"])
+        self.dest_label.configure(bg=p["bg"], fg=p["text_dim"])
+        self.update_status.configure(bg=p["bg"], fg=p["text_dim"])
+        self.quality_feedback.configure(bg=p["bg"], fg=p["text_dim"])
+        self._refresh_preview_feedback()
         self.log.configure(bg=p["surface"], fg=p["text"],
                            highlightbackground=p["border"])
         for tag, key in (("error", "danger"), ("ok", "success"),
@@ -613,12 +615,23 @@ class YtDuoApp:
         self.archive_check.configure(
             bg=p["surface"], fg=p["text"], activebackground=p["surface"],
             activeforeground=p["text"], selectcolor=p["surface_alt"])
+        self.auto_download_check.configure(bg=p["bg"], fg=p["text"],
+            activebackground=p["bg"], activeforeground=p["text"],
+            selectcolor=p["surface_alt"])
         self.cookies_combo.configure(
             bg=p["surface_alt"], fg=p["text"],
             activebackground=p["surface_hi"], activeforeground=p["text"])
         self.cookies_combo["menu"].configure(
             bg=p["surface_alt"], fg=p["text"],
             activebackground=p["accent"], activeforeground=p["accent_text"])
+        self.scale_menu.configure(bg=p["surface_alt"], fg=p["text"],
+            activebackground=p["surface_hi"], activeforeground=p["text"],
+            highlightthickness=0, bd=0)
+        self.scale_menu["menu"].configure(bg=p["surface_alt"], fg=p["text"],
+            activebackground=p["accent"], activeforeground=p["accent_text"])
+        for check in self.preference_checks:
+            check.configure(bg=p["surface"], fg=p["text"], activebackground=p["surface"],
+                activeforeground=p["text"], selectcolor=p["surface_alt"])
         self.queue_scroll.configure(
             troughcolor=p["surface"], bg=p["surface_hi"],
             activebackground=p["border_hi"])
@@ -626,6 +639,7 @@ class YtDuoApp:
         self.input_canvas.configure(bg=p["bg"])
         self.url_entry.configure(bg=p["surface_alt"], fg=p["text"],
                                  insertbackground=p["text"])
+        self.placeholder.configure(bg=p["surface_alt"], fg=p["text_faint"])
         self._paint_input()
 
         for widget in self._all_themed_widgets():
@@ -1440,6 +1454,27 @@ class YtDuoApp:
         rule._section_rule = True
         rule.pack(side="left", fill="x", expand=True)
         return row
+
+    def show_themes(self):
+        if getattr(self, "theme_menu", None):
+            self.theme_menu.destroy()
+        menu = tk.Menu(self.root, tearoff=False, bg=self.palette["surface"],
+                       fg=self.palette["text"], activebackground=self.palette["accent"],
+                       activeforeground=self.palette["accent_text"])
+        self.theme_menu = menu
+        for name, label in theme.THEME_LABELS.items():
+            selected = "✓ " if name == self.theme_name else "   "
+            menu.add_command(label=selected+label,
+                             command=lambda value=name: self.select_theme(value))
+        try:
+            menu.tk_popup(self.theme_button.winfo_rootx(),
+                          self.theme_button.winfo_rooty()+self.theme_button.winfo_height())
+        finally:
+            menu.grab_release()
+
+    def select_theme(self, name):
+        self.apply_theme(name)
+        self._save_settings()
 
 
 def engine_split_urls(text):
