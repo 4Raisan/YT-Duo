@@ -2,7 +2,7 @@
 
 | Platform | Portable / launcher | Installer |
 | --- | --- | --- |
-| Windows x64 | [YT-Duo-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-Portable.exe) | [YT-Duo-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-Setup.exe) |
+| Windows x64 | [YT-Duo-4.6.1-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-4.6.1-Portable.exe) | [YT-Duo-4.6.1-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-4.6.1-Setup.exe) |
 | Linux | [YT-Duo.sh](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo.sh) | — |
 | macOS | [YT-Duo.command](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo.command) | — |
 

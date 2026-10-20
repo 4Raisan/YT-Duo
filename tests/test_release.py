@@ -41,11 +41,11 @@ class StandaloneRelease(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)
             (output / "windows/.ytduo-runtime").mkdir(parents=True)
-            (output / "windows/YT-Duo-Portable.exe").write_bytes(b"portable")
+            (output / ("windows/YT-Duo-" + __version__ + "-Portable.exe")).write_bytes(b"portable")
             (output / "windows/.ytduo-runtime/old.exe").write_bytes(b"runtime")
             build_release.checksums(output)
             manifest = (output / "SHA256SUMS.txt").read_text()
-            self.assertIn("windows/YT-Duo-Portable.exe", manifest)
+            self.assertIn(("windows/YT-Duo-" + __version__ + "-Portable.exe"), manifest)
             self.assertNotIn("old.exe", manifest)
 
     def run_embedded(self, argument):

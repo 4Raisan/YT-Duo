@@ -203,7 +203,7 @@ def build_windows(output):
         str(compiler), "/nologo", "/target:winexe", "/platform:x64",
         "/reference:System.Windows.Forms.dll", "/reference:System.IO.Compression.dll",
         "/win32icon:" + str(ROOT / "src/ytduo/assets/icon.ico"),
-        "/out:" + str(output / "YT-Duo-Portable.exe"),
+        "/out:" + str(output / ("YT-Duo-" + version() + "-Portable.exe")),
         "/resource:" + str(payload) + ",app.zip",
         "/resource:" + str(helper) + ",shell.exe",
         str(ROOT / "scripts/windows_launcher.cs"),
@@ -213,7 +213,7 @@ def build_windows(output):
 def checksums(output):
     lines = []
     for name in ("linux/YT-Duo.sh", "macos/YT-Duo.command",
-                 "windows/YT-Duo-Portable.exe", "windows/YT-Duo-Setup.exe",
+                 ("windows/YT-Duo-" + version() + "-Portable.exe"), ("windows/YT-Duo-" + version() + "-Setup.exe"),
                  "YT-Duo-" + version() + "-source.zip", "LICENSE", "THIRD_PARTY_NOTICES.md"):
         path = output / name
         if path.is_file():
@@ -242,15 +242,15 @@ def main():
     if args.windows or args.setup:
         windows.mkdir(parents=True, exist_ok=True)
         build_windows(windows)
-        artifacts.append("windows/YT-Duo-Portable.exe")
+        artifacts.append(("windows/YT-Duo-" + version() + "-Portable.exe"))
     if args.setup:
         compiler = args.iscc or shutil.which("ISCC.exe")
         if not compiler:
             raise RuntimeError("Install Inno Setup and pass --iscc PATH or add ISCC.exe to PATH.")
         subprocess.run([compiler, "/O" + str(windows),
-                        "/DPortableExePath=" + str(windows / "YT-Duo-Portable.exe"),
+                        "/DPortableExePath=" + str(windows / ("YT-Duo-" + version() + "-Portable.exe")),
                         str(ROOT / "scripts/windows_setup.iss")], cwd=ROOT, check=True)
-        artifacts.append("windows/YT-Duo-Setup.exe")
+        artifacts.append(("windows/YT-Duo-" + version() + "-Setup.exe"))
     artifacts.append(build_source(staging))
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(ROOT / name, staging / name)

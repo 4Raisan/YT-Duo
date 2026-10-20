@@ -11,7 +11,7 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 | Platform | Download |
 | --- | --- |
-| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo-Setup.exe) |
+| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-4.6.1-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.1/YT-Duo-4.6.1-Setup.exe) |
 | Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.sh) |
 | macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.command) |
 

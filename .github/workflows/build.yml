@@ -22,7 +22,8 @@ jobs:
           try {
             $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
             $env:YTDUO_SELF_TEST_REPORT = $report
-            $process = Start-Process -FilePath (Resolve-Path 'Releases/windows/YT-Duo-Portable.exe') -WindowStyle Hidden -PassThru -Wait
+            $version = python -c "from ytduo import __version__; print(__version__)"
+            $process = Start-Process -FilePath (Resolve-Path "Releases/windows/YT-Duo-$version-Portable.exe") -WindowStyle Hidden -PassThru -Wait
             if ($process.ExitCode -ne 0) { throw 'Packaged dependency check failed' }
             Get-Content $report
           } finally {

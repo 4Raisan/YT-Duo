@@ -1,7 +1,7 @@
 dfa811667817cd6255c701dc892acbdd0423da6b5883e302e0761034c60fec03  linux/YT-Duo.sh
 dfa811667817cd6255c701dc892acbdd0423da6b5883e302e0761034c60fec03  macos/YT-Duo.command
-5a77e9dcf96e16b5ec786bfcdfcbdf5ffcb28e1d8585870a9c3ea3065aef890b  windows/YT-Duo-Portable.exe
-1697a47943080a0c2157bcf82af61769eab446441df62e95ed8624d8b99d5d8f  windows/YT-Duo-Setup.exe
-a0fed1f3fcc8b5771d69b815bbcef0cac74687251a04e04266f443497a2f8d42  YT-Duo-4.6.1-source.zip
+5a77e9dcf96e16b5ec786bfcdfcbdf5ffcb28e1d8585870a9c3ea3065aef890b  windows/YT-Duo-4.6.1-Portable.exe
+1697a47943080a0c2157bcf82af61769eab446441df62e95ed8624d8b99d5d8f  windows/YT-Duo-4.6.1-Setup.exe
+d72933632964af8057cd0c96307d8b25fd7b0add9492f4300e891e9d8ccaa3e1  YT-Duo-4.6.1-source.zip
 2b68ad8adf4e79bf89807ab192268eaedbb3b850718896c0f3b8685168429be5  LICENSE
 d504b6f1f15e452b7b50689fad5a982c793e76f486bf37c4ec02dc0cb94cdf5b  THIRD_PARTY_NOTICES.md

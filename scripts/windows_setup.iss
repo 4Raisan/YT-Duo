@@ -1,7 +1,7 @@
 ; Build with Inno Setup 6. Installed state lives outside the application folder.
 #define AppVersion "4.6.1"
 #ifndef PortableExePath
-#define PortableExePath "..\build\release-stage\windows\YT-Duo-Portable.exe"
+#define PortableExePath "..\build\release-stage\windows\YT-Duo-" + AppVersion + "-Portable.exe"
 #endif
 [Setup]
 AppId={{FDE2B3BE-6873-435B-9FB7-28CE550C2BC0}
@@ -17,7 +17,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir=..\build\release-stage\windows
-OutputBaseFilename=YT-Duo-Setup
+OutputBaseFilename=YT-Duo-{#AppVersion}-Setup
 SetupIconFile=..\src\ytduo\assets\icon.ico
 UninstallDisplayIcon={app}\YT-Duo.exe
 WizardStyle=modern
