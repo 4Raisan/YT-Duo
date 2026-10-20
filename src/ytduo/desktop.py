@@ -88,6 +88,47 @@ class WindowChrome:
                 self.gdi.DeleteObject(region)
                 self._rounded_size = None
 
+    def minimize(self):
+        if self.hwnd:
+            self.user.ShowWindow(self.hwnd, 6)
+
+    def keep_on_screen(self):
+        """Fit a newly expanded layout without changing the user's drag loop."""
+        if not self.hwnd:
+            return
+        info = MonitorInfo()
+        info.size = ctypes.sizeof(info)
+        monitor = self.user.MonitorFromWindow(self.hwnd, 2)
+        rect = wintypes.RECT()
+        if not self.user.GetMonitorInfoW(monitor, ctypes.byref(info)) or not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
+            return
+        start = wintypes.POINT(info.work.left, info.work.top)
+        end = wintypes.POINT(info.work.right, info.work.bottom)
+        # Monitor work bounds are physical; GetWindowRect is virtualized for
+        # DPI-unaware Tk windows. Convert using this window's awareness.
+        if not self.user.PhysicalToLogicalPointForPerMonitorDPI(self.hwnd, ctypes.byref(start)) or not self.user.PhysicalToLogicalPointForPerMonitorDPI(self.hwnd, ctypes.byref(end)):
+            return
+        x = max(start.x, min(rect.left, end.x - (rect.right-rect.left)))
+        y = max(start.y, min(rect.top, end.y - (rect.bottom-rect.top)))
+        if (x, y) != (rect.left, rect.top):
+            self.user.SetWindowPos(self.hwnd, None, x, y, 0, 0, 0x0015)
+
+    def bind_drag(self, widget):
+        def start(event):
+            if not self.hwnd:
+                return
+            # Let Windows own the entire move operation. Rewriting Tk's
+            # geometry for each motion fights its cached frame dimensions,
+            # causing redraw lag, position drift and resize events on drag.
+            # Release Tk's implicit mouse capture before caption hit-testing.
+            position = (event.x_root & 0xffff) | ((event.y_root & 0xffff) << 16)
+            self.user.ReleaseCapture()
+            # Queue this after the Tk callback returns; synchronously entering
+            # a nested native event loop can re-enter Tcl from a ctypes call.
+            self.user.PostMessageW(self.hwnd, 0x0112, 0xF012, position)
+            return "break"
+        widget.bind("<ButtonPress-1>", start, add="+")
+
 
 
 
