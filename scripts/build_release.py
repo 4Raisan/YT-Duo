@@ -116,10 +116,15 @@ def prepare_ffmpeg_source():
 
 
 def verify_windows_tools(tools):
+    expected = {item["name"]: item["version"] for item in
+                json.loads((ROOT / "scripts/windows-tools.json").read_text())}
     for name, flag in (("ffmpeg", "-version"), ("ffprobe", "-version"), ("deno", "--version")):
         result = subprocess.run([str(tools / (name + ".exe")), flag], capture_output=True,
                                 text=True, timeout=30, check=True)
         print(result.stdout.splitlines()[0], flush=True)
+        version_line = result.stdout.splitlines()[0]
+        if expected["ffmpeg" if name == "ffprobe" else name] not in version_line:
+            raise RuntimeError("Bundled tool reports an unexpected version: " + version_line)
     def probe(path):
         result = subprocess.run([str(tools / "ffprobe.exe"), "-v", "error",
             "-show_streams", "-show_format", "-of", "json", str(path)],
