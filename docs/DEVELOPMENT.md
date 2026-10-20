@@ -21,7 +21,7 @@ python scripts/build_release.py --windows
 python scripts/build_release.py --windows --setup --iscc "PATH/TO/ISCC.exe"
 ```
 
-Windows must be built on Windows. Artifacts are compiled under `build/release-stage` and published with same-volume atomic renames; do not compile or copy EXEs directly into a custom release directory with inherited integrity labels. Setup requires [Inno Setup 6](https://jrsoftware.org/isdl.php), installed separately. The builder does not download tooling and fails visibly if setup is requested without a compiler. Manual CI builds both Windows variants and uploads artifacts without publishing a release.
+Windows must be built on Windows. Artifacts are compiled under `build/release-stage` and published with same-volume atomic renames; do not compile or copy EXEs directly into a custom release directory with inherited integrity labels. Setup requires [Inno Setup 6](https://jrsoftware.org/isdl.php), installed separately. Build compilers must be installed separately; the builder fetches only pinned, checksum-verified FFmpeg and Deno inputs and fails visibly if Setup is requested without an Inno compiler. Manual CI builds both Windows variants and uploads artifacts without publishing a release.
 
 PyInstaller creates a directory bundle, then the .NET launcher embeds it into the portable EXE. A small unfrozen shell helper is embedded separately. Folder and GitHub actions run in background threads through that helper with sanitized child environment variables; the frozen Python process never changes its live DLL search directory for those actions. Failures return through the service event bridge and release the pending-action state.
 
