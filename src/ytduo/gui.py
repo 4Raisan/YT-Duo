@@ -1359,6 +1359,25 @@ class YtDuoApp:
     def _on_cleanup_warning(self, result):
         self.append_log("Recycle cleanup: " + result["message"], "muted")
 
+    def toggle_pause(self):
+        if not (self.worker and self.worker.is_alive()) or self.bridge.cancelled:
+            return
+        self._pause_requested = not self._pause_requested
+        self.pause_button.set_text("▶" if self._pause_requested else "Ⅱ")
+        self.pause_button.set_active(self._pause_requested)
+        if self._pause_requested:
+            self.bridge.request_pause()
+            self.progress.set_indeterminate(False)
+            self.status_label.configure(text="Pausing at the next checkpoint…")
+        else:
+            self.bridge.request_resume()
+            self.status_label.configure(text="Resuming…")
+
+    def _on_pause_state(self, data):
+        if self.bridge.cancelled:
+            return
+        self.status_label.configure(text="Paused" if data["paused"] and self._pause_requested else "Resuming…")
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
