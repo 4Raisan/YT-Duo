@@ -181,7 +181,6 @@ def build_windows(output):
         "--windowed", "--noupx", "--name", "YT-Duo",
         "--icon", str(ROOT / "src/ytduo/assets/icon.ico"),
         "--add-data", str(ROOT / "src/ytduo/assets") + os.pathsep + "ytduo/assets",
-        "--add-data", str(tools) + os.pathsep + "tools",
         "--add-data", str(ROOT / "LICENSE") + os.pathsep + "licenses/YT-Duo",
         "--add-data", str(ROOT / "THIRD_PARTY_NOTICES.md") + os.pathsep + ".",
         "--collect-all", "yt_dlp_ejs", "--copy-metadata", "yt-dlp-ejs",
@@ -191,6 +190,9 @@ def build_windows(output):
         "--distpath", str(bundle), "--workpath", str(ROOT / "build/pyinstaller"),
         "--specpath", str(ROOT / "build"), str(ROOT / "src/ytduo/_entry.py"),
     ], cwd=ROOT, check=True)
+    # Keep standalone tools out of PyInstaller's DLL dependency analysis:
+    # otherwise their shared libraries can also be collected at bundle root.
+    shutil.copytree(tools, bundle / "YT-Duo/_internal/tools", dirs_exist_ok=True)
     payload = ROOT / "build/app.zip"
     with zipfile.ZipFile(payload, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted((bundle / "YT-Duo").rglob("*")):
