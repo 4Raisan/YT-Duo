@@ -174,3 +174,24 @@ class FolderPolicy(unittest.TestCase):
             self.assertEqual(custom.media_output_dir, os.path.abspath("custom/Audio"))
             with mock.patch.dict(os.environ, {"YTDUO_INSTALLED": "0"}):
                 self.assertEqual(Settings().output_dir, os.path.abspath("test-data/YT-Duo Downloads"))
+
+    def test_recycle_cleanup_is_scoped_and_does_not_remove_finished_media(self):
+        import shutil
+        root = Path(make_workspace())
+        try:
+            settings = Settings(root=str(root))
+            recycle = root / "recycle/nested"
+            recycle.mkdir(parents=True)
+            (recycle / "old.tmp").write_bytes(b"cache")
+            kept = root / "finished.mp4"
+            kept.write_bytes(b"finished")
+            engine.clear_recycle(settings)
+            self.assertFalse((root / "recycle").exists())
+            with self.assertRaises(OSError):
+                engine.clear_recycle(settings.replace(recycle_dir=str(root)))
+            self.assertEqual(kept.read_bytes(), b"finished")
+            with mock.patch.object(engine.os.path, "islink", return_value=True):
+                with self.assertRaises(OSError):
+                    engine.clear_recycle(settings)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)

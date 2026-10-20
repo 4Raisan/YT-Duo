@@ -1356,6 +1356,9 @@ class YtDuoApp:
             request["approved"] = bool(approved)
             request["event"].set()
 
+    def _on_cleanup_warning(self, result):
+        self.append_log("Recycle cleanup: " + result["message"], "muted")
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
