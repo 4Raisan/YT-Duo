@@ -37,7 +37,7 @@ YTDUO_PYTHON=~/.local/share/ytduo-env/bin/python sh YT-Duo.sh
 
 ### macOS
 
-Install Python 3.10+ with Tk from [python.org](https://www.python.org/downloads/macos/). If you use Homebrew, `brew install ffmpeg deno` supplies the media tools and JS runtime. Create the same virtual environment shown above, then launch `YT-Duo.command` instead of `YT-Duo.sh`. Native macOS execution is not verified.
+Install Python 3.10+ with Tk from [python.org](https://www.python.org/downloads/macos/). If you use Homebrew, `brew install ffmpeg deno` supplies the media tools and JS runtime. Create the same virtual environment shown above, then launch `YT-Duo.command` instead of `YT-Duo.sh`. Native macOS engine/CLI and synthetic media paths are checked in CI; desktop GUI execution is not verified.
 
 ### Verify a source installation
 
