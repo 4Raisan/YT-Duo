@@ -2,12 +2,16 @@
   {
     "name": "ffmpeg",
     "version": "9.0.2",
-    "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-full_build-shared.zip",
-    "sha256": "8d31e162f1616e37aab3fa2db991b97e1b8dbeb1c8465fd81a81be16ff91b328",
+    "build": "minimal-source",
+    "commit": "946fcce07b6dcd0331c8cc609192aeff5e1924f8",
+    "url": "https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/946fcce07b6dcd0331c8cc609192aeff5e1924f8",
+    "sha256": "0aa2b1de2a5698b20a23e93d539a9a8e82ca0117496c5bdf05d198805f42bb3b",
     "binaries": [
       "ffmpeg.exe",
       "ffprobe.exe"
-    ]
+    ],
+    "lame_source_url": "https://downloads.sourceforge.net/lame/lame-3.100.tar.gz",
+    "lame_source_sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e"
   },
   {
     "name": "deno",

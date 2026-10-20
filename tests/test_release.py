@@ -3,6 +3,7 @@ from pathlib import Path
 import ast
 import base64
 import io
+import os
 import re
 import zipfile
 import subprocess
@@ -15,6 +16,37 @@ from ytduo import __version__
 
 
 class StandaloneRelease(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32", "Windows compression and launcher")
+    def test_native_payload_roundtrip_and_corrupt_input_in_real_launcher_decoder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            raw = (b"YT-Duo payload roundtrip\x00" * 50000) + bytes(range(256))
+            (root / "input.bin").write_bytes(raw)
+            build_release.compress_windows_payload(root / "input.bin", root / "app.lzms")
+            self.assertLess((root / "app.lzms").stat().st_size, len(raw) // 2)
+            harness = root / "PayloadTest.cs"
+            harness.write_text('''using System;
+using System.IO;
+using System.Reflection;
+class PayloadTest {
+    static int Main(string[] args) {
+        MethodInfo decode = typeof(Launcher).GetMethod("ExpandPayload", BindingFlags.Static | BindingFlags.NonPublic);
+        byte[] result = (byte[])decode.Invoke(null, new object[] { File.ReadAllBytes(args[0]) });
+        File.WriteAllBytes(args[1], result);
+        try { decode.Invoke(null, new object[] { new byte[40] }); return 2; }
+        catch (TargetInvocationException e) { if (!(e.InnerException is InvalidDataException)) return 3; }
+        return 0;
+    }
+}''')
+            compiler = Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+            subprocess.run([str(compiler), "/nologo", "/target:exe", "/main:PayloadTest",
+                "/out:" + str(root / "test.exe"), "/reference:System.Windows.Forms.dll",
+                "/reference:System.IO.Compression.dll", str(harness),
+                str(build_release.ROOT / "scripts/windows_launcher.cs")], check=True, capture_output=True)
+            subprocess.run([str(root / "test.exe"), str(root / "app.lzms"),
+                            str(root / "decoded.bin")], check=True, capture_output=True, timeout=30)
+            self.assertEqual((root / "decoded.bin").read_bytes(), raw)
+
     def test_publication_moves_the_built_file_instead_of_copying_into_output(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

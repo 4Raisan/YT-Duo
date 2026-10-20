@@ -13,6 +13,22 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -e . -r requirements-build.txt
       - run: python -m unittest discover -s tests -t . -q
+      - name: Prepare pinned FFmpeg source
+        run: python -c "from scripts.build_release import prepare_ffmpeg_source; prepare_ffmpeg_source()"
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          path-type: inherit
+          update: true
+          install: >-
+            make diffutils
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-lame
+      - name: Build only required FFmpeg components
+        shell: msys2 {0}
+        run: bash scripts/build_ffmpeg.sh
       - run: python scripts/build_release.py --windows --setup --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
       - name: Check packaged dependencies without system tools
         shell: pwsh
@@ -20,9 +36,9 @@ jobs:
           $savedPath = $env:PATH
           $report = Join-Path $env:RUNNER_TEMP 'ytduo-dependencies.json'
           try {
+            $version = python -c "from ytduo import __version__; print(__version__)"
             $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
             $env:YTDUO_SELF_TEST_REPORT = $report
-            $version = python -c "from ytduo import __version__; print(__version__)"
             $process = Start-Process -FilePath (Resolve-Path "Releases/windows/YT-Duo-$version-Portable.exe") -WindowStyle Hidden -PassThru -Wait
             if ($process.ExitCode -ne 0) { throw 'Packaged dependency check failed' }
             Get-Content $report

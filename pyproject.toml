@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yt-duo"
-version = "4.6.1"
+version = "4.6.2"
 description = "Download YouTube videos in the best available quality."
 license = "MIT"
 license-files = ["LICENSE"]

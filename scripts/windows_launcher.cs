@@ -14,10 +14,40 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Download YouTube videos in the best available quality.")]
 [assembly: AssemblyProduct("YT-Duo")]
 [assembly: AssemblyCompany("4Raisan")]
-[assembly: AssemblyVersion("4.6.1.0")]
-[assembly: AssemblyFileVersion("4.6.1.0")]
+[assembly: AssemblyVersion("4.6.2.0")]
+[assembly: AssemblyFileVersion("4.6.2.0")]
 
 class Launcher {
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("cabinet.dll", SetLastError = true)]
+    static extern bool CreateDecompressor(uint algorithm, IntPtr allocator, out IntPtr handle);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("cabinet.dll", SetLastError = true)]
+    static extern bool Decompress(IntPtr handle, byte[] input, UIntPtr inputSize,
+        [Out] byte[] output, UIntPtr outputSize, out UIntPtr used);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("cabinet.dll")]
+    static extern bool CloseDecompressor(IntPtr handle);
+
+    static byte[] ExpandPayload(byte[] input) {
+        IntPtr handle;
+        if (!CreateDecompressor(5, IntPtr.Zero, out handle))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            UIntPtr size;
+            if (Decompress(handle, input, (UIntPtr)input.Length, null, UIntPtr.Zero, out size) ||
+                Marshal.GetLastWin32Error() != 122 || size.ToUInt64() == 0 ||
+                size.ToUInt64() > 1024UL * 1024 * 1024)
+                throw new InvalidDataException("Invalid compressed application payload.");
+            byte[] output = new byte[(int)size.ToUInt64()];
+            UIntPtr used;
+            if (!Decompress(handle, input, (UIntPtr)input.Length, output, (UIntPtr)output.Length, out used) ||
+                used.ToUInt64() != (ulong)output.Length)
+                throw new InvalidDataException("Could not decompress the application payload.");
+            return output;
+        } finally { CloseDecompressor(handle); }
+    }
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern bool SetDllDirectory(string path);
 
@@ -98,7 +128,7 @@ class Launcher {
                     "\"" + args[1].Replace("\"", "") + "\"";
                 using (Process helper = Process.Start(action)) { helper.WaitForExit(); return helper.ExitCode; }
             }
-            byte[] payload = Resource("app.zip");
+            byte[] payload = Resource("app.lzms");
             string digest = Digest(payload);
             string target = Path.Combine(cache, digest);
             string executable = Path.Combine(target, "YT-Duo.exe");
@@ -116,7 +146,7 @@ class Launcher {
                     Directory.CreateDirectory(stage);
                     try {
                         string prefix = Path.GetFullPath(stage) + Path.DirectorySeparatorChar;
-                        using (MemoryStream data = new MemoryStream(payload))
+                        using (MemoryStream data = new MemoryStream(ExpandPayload(payload)))
                         using (ZipArchive archive = new ZipArchive(data, ZipArchiveMode.Read)) {
                             foreach (ZipArchiveEntry entry in archive.Entries) {
                                 string destination = Path.GetFullPath(Path.Combine(stage, entry.FullName));

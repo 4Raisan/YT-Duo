@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
 import urllib.request
 import zipfile
 
@@ -70,8 +71,15 @@ def extract_tools(archive, destination, binaries, component):
 
 
 def prepare_windows_tools():
-    tools = ROOT / "build/windows-tools"
-    for item in json.loads((ROOT / "scripts/windows-tools.json").read_text()):
+    inputs = (ROOT / "scripts/windows-tools.json").read_bytes()
+    tools = ROOT / "build/windows-tools" / hashlib.sha256(inputs).hexdigest()[:16]
+    for item in json.loads(inputs):
+        if item.get("build") == "minimal-source":
+            built = ROOT / "build/minimal-ffmpeg"
+            if not (built / "source-revision.txt").is_file() or (built / "source-revision.txt").read_text().strip() != item["commit"]:
+                raise RuntimeError("Build the pinned minimal FFmpeg first: scripts/build_ffmpeg.sh")
+            shutil.copytree(built, tools, dirs_exist_ok=True)
+            continue
         archive = verified_download(item["url"], item["sha256"],
                                     ROOT / "build/tool-downloads" / (item["name"] + ".zip"))
         extract_tools(archive, tools, item["binaries"], item["name"])
@@ -80,18 +88,70 @@ def prepare_windows_tools():
                               tools / "licenses" / item["name"] / "LICENSE.md")
     if not any((tools / "licenses/ffmpeg").rglob("*LICENSE*")):
         raise RuntimeError("FFmpeg distribution license is missing")
+    verify_windows_tools(tools)
+    return tools
+
+
+def ffmpeg_source_dir():
+    item = json.loads((ROOT / "scripts/windows-tools.json").read_text())[0]
+    return ROOT / "build/ffmpeg-source" / ("FFmpeg-" + item["commit"])
+
+
+def prepare_ffmpeg_source():
+    item = json.loads((ROOT / "scripts/windows-tools.json").read_text())[0]
+    archive = verified_download(item["url"], item["sha256"],
+                                ROOT / "build/tool-downloads/ffmpeg-source.tar.gz")
+    destination = ffmpeg_source_dir()
+    if not destination.exists():
+        with tarfile.open(archive) as package:
+            package.extractall(destination.parent, filter="data")
+    if not (destination / "configure").is_file():
+        raise RuntimeError("FFmpeg source archive layout does not match the pinned revision")
+    lame = verified_download(item["lame_source_url"], item["lame_source_sha256"],
+                             ROOT / "build/tool-downloads/lame-3.100.tar.gz")
+    license_path = ROOT / "build/minimal-ffmpeg/licenses/ffmpeg/LAME-COPYING"
+    license_path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(lame) as package:
+        license_path.write_bytes(package.extractfile("lame-3.100/COPYING").read())
+
+
+def verify_windows_tools(tools):
     for name, flag in (("ffmpeg", "-version"), ("ffprobe", "-version"), ("deno", "--version")):
         result = subprocess.run([str(tools / (name + ".exe")), flag], capture_output=True,
                                 text=True, timeout=30, check=True)
         print(result.stdout.splitlines()[0], flush=True)
+    def probe(path):
+        result = subprocess.run([str(tools / "ffprobe.exe"), "-v", "error",
+            "-show_streams", "-show_format", "-of", "json", str(path)],
+            check=True, capture_output=True, text=True, timeout=30)
+        return json.loads(result.stdout)
+    fixtures = json.loads((ROOT / "tests/fixtures/media.json").read_text())["clips"]
     with tempfile.TemporaryDirectory() as folder:
-        audio = str(Path(folder) / "check.mp3")
-        subprocess.run([str(tools / "ffmpeg.exe"), "-v", "error", "-f", "lavfi",
-                        "-i", "sine=frequency=440:duration=0.2", "-c:a", "libmp3lame", audio],
-                       check=True, timeout=30)
-        subprocess.run([str(tools / "ffprobe.exe"), "-v", "error", "-show_streams", audio],
-                       check=True, timeout=30, capture_output=True)
-    return tools
+        folder = Path(folder)
+        for name, encoded in fixtures.items():
+            source = folder / name
+            source.write_bytes(base64.b64decode(encoded, validate=True))
+            expected = {"h264", "aac"} if name.startswith("h264") else {name.split("-")[0], "opus"}
+            merged = folder / (name + (".mp4" if name.startswith("h264") else ".mkv"))
+            subprocess.run([str(tools / "ffmpeg.exe"), "-v", "error", "-i", str(source),
+                "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-movflags", "+faststart", str(merged)],
+                check=True, timeout=30)
+            info = probe(merged)
+            if {s["codec_name"] for s in info["streams"]} != expected or float(info["format"]["duration"]) <= 0:
+                raise RuntimeError("Bundled FFmpeg merge verification failed: " + name)
+            audio = folder / (name + (".m4a" if name.startswith("h264") else ".opus"))
+            subprocess.run([str(tools / "ffmpeg.exe"), "-v", "error", "-i", str(source),
+                "-map", "0:a:0", "-vn", "-c:a", "copy", str(audio)], check=True, timeout=30)
+            if len(probe(audio)["streams"]) != 1:
+                raise RuntimeError("Original-audio verification failed")
+            for bitrate in (0, 128, 192, 256, 320):
+                mp3 = folder / (name + str(bitrate) + ".mp3")
+                quality = ["-b:a", str(bitrate) + "k"] if bitrate else ["-q:a", "0"]
+                subprocess.run([str(tools / "ffmpeg.exe"), "-v", "error", "-i", str(source),
+                    "-map", "0:a:0", "-vn", "-c:a", "libmp3lame"] + quality + [str(mp3)], check=True, timeout=30)
+                if [s["codec_name"] for s in probe(mp3)["streams"]] != ["mp3"]:
+                    raise RuntimeError("MP3 conversion verification failed")
+    print("Media checks: H264/AAC, VP9/Opus, AV1/Opus; merge, original audio, five MP3 qualities passed", flush=True)
 
 
 def build_source(output):
@@ -194,20 +254,53 @@ def build_windows(output):
     # otherwise their shared libraries can also be collected at bundle root.
     shutil.copytree(tools, bundle / "YT-Duo/_internal/tools", dirs_exist_ok=True)
     payload = ROOT / "build/app.zip"
-    with zipfile.ZipFile(payload, "w", zipfile.ZIP_DEFLATED) as archive:
+    # Compress the complete stored ZIP once so repeated library code can share
+    # a dictionary. Deflating each file first defeats solid compression.
+    with zipfile.ZipFile(payload, "w", zipfile.ZIP_STORED) as archive:
         for path in sorted((bundle / "YT-Duo").rglob("*")):
             if path.is_file():
                 archive.write(path, path.relative_to(bundle / "YT-Duo").as_posix())
+    compressed = ROOT / "build/app.lzms"
+    compress_windows_payload(payload, compressed)
     compiler = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
     subprocess.run([
         str(compiler), "/nologo", "/target:winexe", "/platform:x64",
         "/reference:System.Windows.Forms.dll", "/reference:System.IO.Compression.dll",
         "/win32icon:" + str(ROOT / "src/ytduo/assets/icon.ico"),
         "/out:" + str(output / ("YT-Duo-" + version() + "-Portable.exe")),
-        "/resource:" + str(payload) + ",app.zip",
+        "/resource:" + str(compressed) + ",app.lzms",
         "/resource:" + str(helper) + ",shell.exe",
         str(ROOT / "scripts/windows_launcher.cs"),
     ], cwd=ROOT, check=True)
+
+
+def compress_windows_payload(source, destination):
+    """Use Windows' built-in LZMS codec; no extra decoder ships with the app."""
+    import ctypes as c
+    from ctypes import wintypes as w
+    api = c.WinDLL(str(Path(os.environ["SystemRoot"]) / "System32/cabinet.dll"),
+                   use_last_error=True)
+    api.CreateCompressor.argtypes = [w.DWORD, c.c_void_p, c.POINTER(c.c_void_p)]
+    api.SetCompressorInformation.argtypes = [c.c_void_p, c.c_int, c.c_void_p, c.c_size_t]
+    api.Compress.argtypes = [c.c_void_p, c.c_void_p, c.c_size_t,
+                            c.c_void_p, c.c_size_t, c.POINTER(c.c_size_t)]
+    api.CloseCompressor.argtypes = [c.c_void_p]
+    handle = c.c_void_p()
+    if not api.CreateCompressor(5, None, c.byref(handle)):
+        raise c.WinError(c.get_last_error())
+    try:
+        block = w.DWORD(32 * 1024 * 1024)
+        if not api.SetCompressorInformation(handle, 1, c.byref(block), c.sizeof(block)):
+            raise c.WinError(c.get_last_error())
+        raw = Path(source).read_bytes()
+        output = c.create_string_buffer(len(raw) + 65536)
+        used = c.c_size_t()
+        if not api.Compress(handle, raw, len(raw), output, len(output), c.byref(used)):
+            raise c.WinError(c.get_last_error())
+        Path(destination).write_bytes(output.raw[:used.value])
+        print("Solid payload:", len(raw), "->", used.value, "bytes", flush=True)
+    finally:
+        api.CloseCompressor(handle)
 
 
 def checksums(output):
