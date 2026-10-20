@@ -198,3 +198,31 @@ def open_folder_windows(path):
             ole.CoTaskMemFree(pidl)
         if initialized >= 0:
             ole.CoUninitialize()
+
+
+@contextmanager
+def shell_environment():
+    """Do not pass PyInstaller's private DLL directory to Windows Explorer.
+
+    Restore the actual previous directory, including on failed launches.
+    Keep this process-global change confined to the short launch operation.
+    """
+    with _launch_lock:
+        kernel = None
+        previous = None
+        if sys.platform == "win32" and getattr(sys, "frozen", False):
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.GetDllDirectoryW.argtypes = [ctypes.c_uint32, ctypes.c_wchar_p]
+            kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+            size = kernel.GetDllDirectoryW(0, None)
+            buffer = ctypes.create_unicode_buffer(size + 1)
+            kernel.GetDllDirectoryW(len(buffer), buffer)
+            previous = buffer.value or None
+            if not kernel.SetDllDirectoryW(None):
+                raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            yield
+        finally:
+            if kernel is not None:
+                if not kernel.SetDllDirectoryW(previous):
+                    raise ctypes.WinError(ctypes.get_last_error())
