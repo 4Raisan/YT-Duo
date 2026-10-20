@@ -79,7 +79,8 @@ def migrate_legacy_state(settings):
         source = os.path.join(settings.root, name)
         output = settings._abs(saved["output_dir"]) if isinstance(saved["output_dir"], str) else settings.output_dir
         try:
-            if os.path.commonpath([source, output]) == source:
+            resolved_source, resolved_output = os.path.realpath(source), os.path.realpath(output)
+            if os.path.commonpath([resolved_source, resolved_output]) == resolved_source:
                 continue  # A chosen media destination is not a work dir.
         except ValueError:
             pass  # Portable app and chosen Downloads folder can use different drives.

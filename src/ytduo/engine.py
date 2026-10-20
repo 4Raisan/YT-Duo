@@ -668,7 +668,7 @@ def merge(index, title, video_file, audio_file, video_fmt, audio_fmt,
 # ── Batch orchestration ──────────────────────────────────────────────
 
 def _archive_entries(settings):
-    """Map url -> recorded output path (or None for legacy entries)."""
+    """Map a private variant key to its recorded output path."""
     entries = {}
     if not os.path.exists(settings.archive_file):
         return entries
@@ -729,7 +729,7 @@ def _selection_identity(formats, settings):
 
 
 def already_downloaded(url, settings, selection=None):
-    """True if ``url`` was completed *and its file still exists*.
+    """True if this selected variant completed and its file still exists.
 
     The archive stores the output path alongside the URL. An entry whose
     file has since been moved or deleted -- or that was written to a
@@ -743,11 +743,11 @@ def already_downloaded(url, settings, selection=None):
 
 
 def _record_archive(url, settings, path, selection=None):
-    """Append ``url`` and its output path after a verified success.
+    """Record the selected variant and output path after a verified success.
 
     Done manually rather than letting yt-dlp record it per stream, so a
     video whose merge failed is retried next run instead of being skipped
-    forever. The format is ``YT-Duo <url> <path>``.
+    forever. The format is ``YT-Duo <hashed-variant-key> <path>``.
     """
     if not settings.use_archive:
         return
