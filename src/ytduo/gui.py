@@ -671,12 +671,29 @@ class YtDuoApp:
     def _autosize(self):
         try:
             self.root.update_idletasks()
-            width = max(self.root.winfo_width(), self.root.winfo_reqwidth(), 600)
-            height = min(self.root.winfo_reqheight() + 4, 900)
-            if (width, height) != (self.root.winfo_width(),
-                                   self.root.winfo_height()):
-                self.root.geometry(f"{width}x{height}")
+            # Tk's cached non-client border size can differ after Windows
+            # caption removal. Reusing the observed client width repeatedly
+            # would grow the window each time Music or Options is toggled.
+            # Only one large panel is open. Give its content a compact
+            # viewport of its own (queue / log), never a scrolling app page.
+            cap = max(260, self.root.winfo_screenheight() - 64)
+            self.queue_list.configure(height=2)
+            self.root.update_idletasks()
+            if self.settings_visible and self.shell.winfo_reqheight() + 6 > cap:
+                self.queue_list.configure(height=1)
                 self.root.update_idletasks()
+            width = max(self.shell.winfo_reqwidth() + 6, 640)
+            height = self.shell.winfo_reqheight() + 6
+            geometry = f"{width}x{height}"
+            if self.root.winfo_ismapped():
+                x, y = self.root.winfo_x(), self.root.winfo_y()
+                fitted_y = max(0, min(y, self.root.winfo_screenheight() - height - 48))
+                if fitted_y != y:
+                    geometry += f"+{max(0, x)}+{fitted_y}"
+            self.root.geometry(geometry)
+            self.root.update_idletasks()
+            if self.chrome:
+                self.chrome.keep_on_screen()
         except tk.TclError:
             pass
 
@@ -1509,6 +1526,37 @@ class YtDuoApp:
     def _toggle_topmost(self):
         self.root.attributes("-topmost", bool(self.topmost_var.get()))
         self._save_settings()
+
+    def show_ready(self):
+        """Reveal one completed layout, including Windows' native frame pass."""
+        masked = False
+        try:
+            self.root.attributes("-alpha", 0.0)
+            masked = True
+        except tk.TclError:
+            pass
+        self.root.deiconify()
+        self.root.update()
+        if self.chrome:
+            self.chrome.apply()
+        self._autosize()
+        self.root.update()
+        if masked:
+            self.root.attributes("-alpha", 1.0)
+        self.url_entry.focus_set()
+
+    def _on_window_map(self, event):
+        if event.widget is self.root:
+            self._schedule_layout()
+
+    def _schedule_layout(self):
+        if self._layout_id is None and not self._destroyed:
+            self._layout_id = self.root.after_idle(self._settle_layout)
+
+    def _settle_layout(self):
+        self._layout_id = None
+        if not self._destroyed:
+            self._autosize()
 
 
 def engine_split_urls(text):
