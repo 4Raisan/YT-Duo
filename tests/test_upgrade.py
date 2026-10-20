@@ -9,7 +9,7 @@ import urllib.error
 import unittest
 from unittest import mock
 
-from ytduo import engine, selector
+from ytduo import engine, selector, updates
 from ytduo.config import Settings
 from tests.test_engine import make_workspace
 from tests.test_gui import GuiTestCase, pump_until
@@ -195,3 +195,44 @@ class FolderPolicy(unittest.TestCase):
                     engine.clear_recycle(settings)
         finally:
             shutil.rmtree(root, ignore_errors=True)
+
+
+class ReleaseChecks(unittest.TestCase):
+    def checker(self, release):
+        opener = mock.Mock()
+        opener.open.return_value.__enter__ = mock.Mock(return_value=io.BytesIO(json.dumps(release).encode()))
+        opener.open.return_value.__exit__ = mock.Mock(return_value=False)
+        return updates.UpdateChecker("4.0.0", opener=opener, clock=lambda: 10), opener
+
+    def test_only_numeric_stable_versions_and_fixed_release_link(self):
+        checker, opener = self.checker({"tag_name": "v10.0.0", "html_url": "https://evil.invalid"})
+        result = checker.check()
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(result["url"], updates.RELEASE_URL)
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.full_url, updates.RELEASE_API)
+        self.assertEqual(opener.open.call_args.kwargs["timeout"], 8)
+
+    def test_drafts_prereleases_and_invalid_tags_are_not_updates(self):
+        for release in ({"tag_name": "v5.0.0", "draft": True},
+                        {"tag_name": "v5.0.0", "prerelease": True},
+                        {"tag_name": "v5.0.0-beta"}, {"tag_name": "main"}, []):
+            checker, _ = self.checker(release)
+            self.assertEqual(checker.check()["status"], "unavailable")
+
+    def test_current_cache_and_explicit_refresh(self):
+        checker, opener = self.checker({"tag_name": "v4.0.0"})
+        self.assertEqual(checker.check()["status"], "current")
+        checker.check()
+        self.assertEqual(opener.open.call_count, 1)
+        # A fresh stream is required for an explicit second HTTP response.
+        opener.open.return_value.__enter__.return_value = io.BytesIO(b'{"tag_name":"v4.0.0"}')
+        checker.check(force=True)
+        self.assertEqual(opener.open.call_count, 2)
+
+    def test_offline_and_missing_release_are_not_current(self):
+        checker, opener = self.checker({})
+        opener.open.side_effect = OSError("offline")
+        self.assertEqual(checker.check()["status"], "unavailable")
+        opener.open.side_effect = urllib.error.HTTPError(updates.RELEASE_API, 404, "missing", {}, None)
+        self.assertEqual(checker.check(force=True)["status"], "unpublished")
