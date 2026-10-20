@@ -1,5 +1,5 @@
 ; Build with Inno Setup 6. Installed state lives outside the application folder.
-#define AppVersion "4.5.1"
+#define AppVersion "4.6.0"
 #ifndef PortableExePath
 #define PortableExePath "..\build\release-stage\windows\YT-Duo-Portable.exe"
 #endif
@@ -21,6 +21,7 @@ OutputBaseFilename=YT-Duo-Setup
 SetupIconFile=..\src\ytduo\assets\icon.ico
 UninstallDisplayIcon={app}\YT-Duo.exe
 WizardStyle=modern
+LicenseFile=..\LICENSE
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=yes
@@ -33,6 +34,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "{#PortableExePath}"; DestDir: "{app}"; DestName: "YT-Duo.exe"; Flags: ignoreversion
 Source: "installed.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\YT-Duo"; Filename: "{app}\YT-Duo.exe"

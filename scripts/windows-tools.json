@@ -1,0 +1,23 @@
+[
+  {
+    "name": "ffmpeg",
+    "version": "9.0.2",
+    "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-full_build-shared.zip",
+    "sha256": "8d31e162f1616e37aab3fa2db991b97e1b8dbeb1c8465fd81a81be16ff91b328",
+    "binaries": [
+      "ffmpeg.exe",
+      "ffprobe.exe"
+    ]
+  },
+  {
+    "name": "deno",
+    "version": "2.9.7",
+    "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+    "sha256": "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+    "binaries": [
+      "deno.exe"
+    ],
+    "license_url": "https://raw.githubusercontent.com/denoland/deno/v2.9.7/LICENSE.md",
+    "license_sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588"
+  }
+]

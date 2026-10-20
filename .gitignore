@@ -90,3 +90,7 @@ Releases/**/recycle/
 *.mp3
 *.m4a
 *.opus
+
+# Generated release license copies
+Releases/LICENSE
+Releases/THIRD_PARTY_NOTICES.md

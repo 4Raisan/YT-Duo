@@ -14,8 +14,8 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Download YouTube videos in the best available quality.")]
 [assembly: AssemblyProduct("YT-Duo")]
 [assembly: AssemblyCompany("4Raisan")]
-[assembly: AssemblyVersion("4.5.1.0")]
-[assembly: AssemblyFileVersion("4.5.1.0")]
+[assembly: AssemblyVersion("4.6.0.0")]
+[assembly: AssemblyFileVersion("4.6.0.0")]
 
 class Launcher {
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

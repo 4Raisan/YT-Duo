@@ -57,3 +57,67 @@ class DependencyTests(unittest.TestCase):
             self.assertEqual(main(["--check-dependencies"]), 1)
         self.assertIn("FFprobe", output.getvalue())
 
+
+class BuildInputTests(unittest.TestCase):
+    def archive(self, files):
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w") as package:
+            for name, value in files:
+                package.writestr(name, value)
+        stream.seek(0)
+        return stream
+
+    def test_selected_binaries_dlls_and_license_are_kept_not_ffplay(self):
+        data = self.archive([("dist/bin/ffmpeg.exe", b"a"), ("dist/bin/ffprobe.exe", b"b"),
+                             ("dist/bin/avcodec.dll", b"dll"), ("dist/LICENSE.txt", b"license"),
+                             ("dist/bin/ffplay.exe", b"unused")])
+        with tempfile.TemporaryDirectory() as folder:
+            build_release.extract_tools(data, folder, ["ffmpeg.exe", "ffprobe.exe"], "ffmpeg")
+            root = Path(folder)
+            self.assertEqual((root / "avcodec.dll").read_bytes(), b"dll")
+            self.assertTrue((root / "licenses/ffmpeg/dist/LICENSE.txt").is_file())
+            self.assertFalse((root / "ffplay.exe").exists())
+
+    def test_missing_ffprobe_rejects_incomplete_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(RuntimeError, "Missing"):
+                build_release.extract_tools(self.archive([("bin/ffmpeg.exe", b"a")]),
+                    folder, ["ffmpeg.exe", "ffprobe.exe"], "ffmpeg")
+
+    def test_archive_path_traversal_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(RuntimeError, "Unsafe"):
+                build_release.extract_tools(self.archive([("../deno.exe", b"a")]),
+                                            folder, ["deno.exe"], "deno")
+
+    def test_duplicate_binary_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(RuntimeError, "Duplicate"):
+                build_release.extract_tools(self.archive([("a/deno.exe", b"a"),
+                    ("b/deno.exe", b"b")]), folder, ["deno.exe"], "deno")
+
+    def test_checksum_failure_never_publishes_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "tool.zip"
+            with mock.patch.object(build_release.urllib.request, "urlopen", return_value=io.BytesIO(b"bad")):
+                with self.assertRaisesRegex(RuntimeError, "checksum"):
+                    build_release.verified_download("https://example.test/tool.zip", "0" * 64, target)
+            self.assertFalse(target.exists())
+
+    def test_verified_cache_does_not_download(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "tool.zip"
+            target.write_bytes(b"verified")
+            with mock.patch.object(build_release.urllib.request, "urlopen") as network:
+                build_release.verified_download("https://example.test/tool.zip",
+                    hashlib.sha256(b"verified").hexdigest(), target)
+                network.assert_not_called()
+
+    def test_source_bundle_has_license_and_no_media_or_binaries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            name = build_release.build_source(folder)
+            with zipfile.ZipFile(Path(folder) / name) as package:
+                names = package.namelist()
+                self.assertIn("YT-Duo/LICENSE", names)
+                self.assertIn("YT-Duo/pyproject.toml", names)
+                self.assertFalse(any(n.endswith((".exe", ".mkv", ".opus")) for n in names))
