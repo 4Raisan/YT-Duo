@@ -1258,6 +1258,16 @@ class YtDuoApp:
         self._sync_placeholder()
         self._paint_input()
 
+    def _maybe_auto_download(self):
+        if (self._destroyed or not self.auto_download_var.get()
+                or self._preview_info is None or self._link_status_color != "success"
+):
+            return
+        # Consume before starting: re-entrant Tk updates and repeated service
+        # events must never start the same paste twice.
+        self._auto_generation = self._preview_generation
+        self.download_single()
+
 
 def engine_split_urls(text):
     """URLs out of pasted text -- same rules as the CLI."""
