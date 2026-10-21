@@ -14,7 +14,7 @@ from ytduo import updates
 class DirectUpdates(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
-        self.root = Path(self.folder.name)
+        self.root = Path(self.folder.name).resolve()
         self.target = self.root / "YT-Duo.exe"
         self.target.write_bytes(b"old app")
         self.environment = mock.patch.dict(os.environ, {"YTDUO_LAUNCHER": str(self.target)})
