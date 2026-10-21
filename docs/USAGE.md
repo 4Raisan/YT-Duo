@@ -26,6 +26,6 @@ python -m ytduo --help
 
 ## Limits
 
-Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--numbered` forces queue prefixes; `--no-numbered` disables them, including for batches. Updates check GitHub at startup and when you click Check updates. If the API is unavailable, the app also checks GitHub's latest-release redirect. A failed check keeps View release available and explains the failure in the terminal. Download and install updates manually; nothing installs automatically.
+Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--numbered` forces queue prefixes; `--no-numbered` disables them, including for batches. Updates check GitHub automatically at startup. Click **Update to latest** to refresh the check, download the matching stable release, verify its SHA-256 and restart the app. Finish active downloads first. Failed checks or transfers leave a retryable action and an error message. Settings and media stay in place. Source installs require a source upgrade; builds before 4.6.4 require one manual upgrade. **Star on GitHub** opens the repository.
 
 YT-Duo is independent of YouTube/Google. Download only content you have permission to save.
