@@ -765,16 +765,39 @@ class UpgradeGui(GuiTestCase):
             self.assertTrue(pump_until(self.tk, lambda: not self.app._external_pending))
         browse.assert_called_once_with(updates.REPO_URL)
 
-    def test_update_notice_clears_after_failed_check(self):
+    def test_update_button_replaces_release_link_and_failed_check_resets_notice(self):
         self.app._on_update_result({"status": "available", "latest": "5.0.0"})
-        self.assertEqual(self.app.release_button.winfo_manager(), "pack")
-        with mock.patch("ytduo.gui.desktop.open_url") as browse:
-            self.app.release_button.command()
-            self.assertTrue(pump_until(self.tk, lambda: not self.app._external_pending))
-        browse.assert_called_once_with(updates.RELEASE_URL)
+        self.assertFalse(hasattr(self.app, "release_button"))
+        self.assertEqual(self.app.update_button.text, "Update to latest")
         self.app._on_update_result({"status": "unavailable"})
-        self.assertEqual(self.app.release_button.winfo_manager(), "pack")
         self.assertIn("unavailable", self.app.update_status.cget("text"))
+
+    def test_automatic_check_never_installs_but_explicit_click_does(self):
+        with mock.patch.object(self.app, "_download_update") as download:
+            self.app._on_update_result({"status": "available", "latest": "5.0.0"})
+            download.assert_not_called()
+            with mock.patch.object(self.app.update_checker, "check", return_value={
+                    "status": "available", "latest": "5.0.0"}):
+                self.app.update_button.command()
+                self.assertTrue(pump_until(self.tk, lambda: download.called))
+            download.assert_called_once_with("5.0.0")
+
+    def test_update_is_blocked_during_download_and_no_download_starts_during_update(self):
+        self.app.worker = mock.Mock()
+        self.app.worker.is_alive.return_value = True
+        with mock.patch.object(self.app, "check_updates") as check:
+            self.app.update_to_latest()
+            check.assert_not_called()
+        self.app.worker = None
+        self.app._installing_update = True
+        self.assertFalse(self.app._start(["https://youtu.be/abcdefghijk"]))
+
+    def test_download_update_error_is_visible_and_retry_enabled(self):
+        with mock.patch("ytduo.gui.messagebox.showerror") as error:
+            self.app._on_update_failed({"error": "checksum mismatch"})
+        error.assert_called_once()
+        self.assertFalse(self.app._installing_update)
+        self.assertEqual(self.app.update_button.text, "Update to latest")
 
     def test_every_application_launch_requests_a_fresh_update_check(self):
         import tkinter as tk

@@ -69,6 +69,8 @@ class YtDuoApp:
         self._update_thread = None
         self._update_start_id = None
         self._update_result = None
+        self._installing_update = False
+        self._update_requested = False
         self._external_pending = set()
         self._layout_id = None
         self._auto_generation = None
@@ -455,13 +457,10 @@ class YtDuoApp:
             lambda: self._open_project_url(updates.REPO_URL), self.palette, self.fonts,
             kind="ghost", height=26, font_key="small", padding=(10, 0))
         self.star_button.pack(side="right")
-        self.update_button = widgets.Button(self.footer_row, "Check updates",
-            self.check_updates, self.palette, self.fonts,
+        self.update_button = widgets.Button(self.footer_row, "Update to latest",
+            self.update_to_latest, self.palette, self.fonts,
             kind="ghost", height=26, font_key="small", padding=(10, 0))
         self.update_button.pack(side="right", padx=(0, 6))
-        self.release_button = widgets.Button(self.footer_row, "View release ↗",
-            lambda: self._open_project_url(updates.RELEASE_URL), self.palette, self.fonts,
-            kind="ghost", height=26, font_key="small", padding=(10, 0))
 
     def _open_project_url(self, url):
         self._external_action("url", url, lambda: desktop.open_url(url))
@@ -490,9 +489,8 @@ class YtDuoApp:
             messagebox.showerror("YT-Duo", title + "\n" + result["target"] + "\n\n" + result["error"], parent=self.root)
 
     def check_updates(self, force=True):
-        if self._destroyed or (self._update_thread and self._update_thread.is_alive()):
+        if self._destroyed or self._installing_update or (self._update_thread and self._update_thread.is_alive()):
             return
-        self.release_button.pack_forget()
         self.update_status.configure(text="Checking updates…", fg=self.palette["text_dim"])
         self.update_button.set_enabled(False)
         self.update_button.set_text("Checking…")
@@ -514,22 +512,77 @@ class YtDuoApp:
         self._update_result = result
         self._update_thread = None
         self.update_button.set_enabled(True)
-        self.update_button.set_text("Check updates")
-        self.release_button.pack_forget()
+        self.update_button.set_text("Update to latest")
         status = result.get("status")
         if status == "available":
             text = "Update " + result["latest"] + " available"
-            self.release_button.pack(side="right", padx=(0, 6))
         else:
             text = {"current": "Up to date", "unpublished": "No release published"}.get(
                 status, "Update check unavailable")
             if status not in ("current", "unpublished"):
-                self.release_button.pack(side="right", padx=(0, 6))
                 self.append_log("Update check failed. " + result.get("reason", "Could not reach GitHub.")
-                                + " Use View release to check manually.", "error")
+                                + " Press Update to latest to retry.", "error")
         self.update_status.configure(text="v" + __version__ + " · " + text,
             fg=self.palette["success"] if status == "available" else self.palette["text_dim"])
         self._autosize()
+
+        requested, self._update_requested = self._update_requested, False
+        if requested and status == "available":
+            self._download_update(result["latest"])
+
+    def update_to_latest(self):
+        if self._installing_update or self._destroyed:
+            return
+        if self.worker and self.worker.is_alive():
+            self.append_log("Finish or stop the download before updating.", "error")
+            return
+        self._update_requested = True
+        if self._update_thread and self._update_thread.is_alive():
+            return  # The automatic check will satisfy this click.
+        self.check_updates(True)
+
+    def _download_update(self, latest):
+        self._installing_update = True
+        self.update_button.set_enabled(False)
+        self.update_button.set_text("Downloading…")
+        self.update_status.configure(text="Downloading v" + latest + "…")
+        bridge = self.service_bridge
+        def work():
+            try:
+                path = updates.download_update(latest,
+                    lambda size: bridge.emit("update_progress", {"bytes": size}))
+                bridge.emit("update_downloaded", {"path": path})
+            except Exception as exc:
+                bridge.emit("update_failed", {"error": str(exc)})
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_update_progress(self, data):
+        if not self._destroyed:
+            self.update_status.configure(text=f"Updating… {data['bytes'] / 1048576:.1f} MB")
+
+    def _on_update_failed(self, data):
+        if self._destroyed:
+            return
+        self._installing_update = False
+        self.update_button.set_enabled(True)
+        self.update_button.set_text("Update to latest")
+        self.update_status.configure(text="Update failed · retry", fg=self.palette["danger"])
+        self.append_log("Update failed: " + data["error"], "error")
+        messagebox.showerror("YT-Duo update", data["error"], parent=self.root)
+
+    def _on_update_downloaded(self, data):
+        if self._destroyed:
+            return
+        try:
+            if self.worker and self.worker.is_alive():
+                raise OSError("Finish or stop the download, then retry updating.")
+            self._save_settings()
+            updates.apply_update(data["path"])
+        except Exception as exc:
+            self._on_update_failed({"error": str(exc)})
+            return
+        self.destroy()
+        self.root.destroy()
 
     def _build_header(self):
         row = tk.Frame(self.shell, bg=self.palette["bg"])
@@ -1532,6 +1585,8 @@ class YtDuoApp:
         self._start(urls, queued=True)
 
     def _start(self, urls, queued=False):
+        if self._installing_update:
+            return False
         if self.worker and self.worker.is_alive():
             return
         settings = self._make_settings().replace(numbered=True if queued else None)

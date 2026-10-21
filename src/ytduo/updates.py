@@ -1,4 +1,11 @@
-"""Public stable-release notices. Never installs, stars, or sends media data."""
+"""Stable-release checks and user-initiated, checksum-verified updates."""
+import hashlib
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 import json
 import re
 import threading
@@ -10,6 +17,111 @@ import urllib.parse
 REPO_URL = "https://github.com/4Raisan/YT-Duo"
 RELEASE_URL = REPO_URL + "/releases/latest"
 RELEASE_API = "https://api.github.com/repos/4Raisan/YT-Duo/releases/latest"
+
+
+class AssetRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urllib.parse.urlsplit(newurl)
+        if parsed.scheme != "https" or parsed.hostname not in {
+                "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}:
+            raise ValueError("Untrusted update redirect")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def launcher_path():
+    path = os.environ.get("YTDUO_LAUNCHER", "")
+    if not path or not Path(path).is_file():
+        raise OSError("Run the portable app, installed app, or Unix launcher to update. Source installs: git pull and reinstall dependencies.")
+    return Path(path).resolve()
+
+
+def download_update(latest, progress=None, opener=None):
+    """Stage the matching official asset; never touch the running installation."""
+    if not version_parts(latest):
+        raise ValueError("Invalid update version")
+    target = launcher_path()
+    # Fail before downloading if the app lives in a read-only folder.
+    with tempfile.TemporaryFile(dir=target.parent):
+        pass
+    platform = sys.platform
+    if platform == "win32":
+        name, relative = "YT-Duo-" + latest + "-Portable.exe", "windows/"
+    elif platform in ("linux", "darwin"):
+        name = "YT-Duo.command" if platform == "darwin" else "YT-Duo.sh"
+        relative = "macos/" if platform == "darwin" else "linux/"
+    else:
+        raise OSError("This platform does not support direct updates.")
+    opener = opener or urllib.request.build_opener(AssetRedirect())
+    base = REPO_URL + "/releases/download/v" + latest + "/"
+    def open_asset(filename):
+        return opener.open(urllib.request.Request(base + filename,
+            headers={"User-Agent": "YT-Duo-updater"}), timeout=30)
+    with open_asset("SHA256SUMS.txt") as response:
+        raw = response.read(65537)
+    if len(raw) > 65536:
+        raise ValueError("Update checksum list is too large")
+    expected = []
+    for line in raw.decode("utf-8-sig").splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1] in (name, relative + name):
+            expected.append(parts[0])
+    if len(expected) != 1 or not re.fullmatch("[a-fA-F0-9]{64}", expected[0]):
+        raise ValueError("Missing or ambiguous update checksum")
+    folder = Path(tempfile.mkdtemp(prefix="ytduo-update-"))
+    destination = folder / name
+    try:
+        digest, size = hashlib.sha256(), 0
+        with open_asset(name) as response, destination.open("wb") as output:
+            while chunk := response.read(256 * 1024):
+                size += len(chunk)
+                if size > 200 * 1024 * 1024:
+                    raise ValueError("Update download exceeds the size limit")
+                digest.update(chunk)
+                output.write(chunk)
+                if progress:
+                    progress(size)
+        if not size or digest.hexdigest() != expected[0].lower():
+            raise ValueError("Update checksum did not match. Your app has not been changed.")
+        return str(destination)
+    except Exception:
+        shutil.rmtree(folder)
+        raise
+
+
+def apply_update(staged):
+    """Hand Windows replacement to the new launcher; atomically replace Unix launchers."""
+    target, source = launcher_path(), Path(staged).resolve()
+    if sys.platform == "win32":
+        parent = os.environ.get("YTDUO_LAUNCHER_PID", "0")
+        if not parent.isdecimal():
+            raise ValueError("Invalid launcher process")
+        return subprocess.Popen([str(source), "--apply-update", str(target),
+            str(os.getpid()), parent], creationflags=0x08000000, close_fds=True)
+    # Keep a rollback copy until the replacement process has been created.
+    descriptor, temporary = tempfile.mkstemp(prefix=".ytduo-update-", dir=target.parent)
+    backup_fd, backup = tempfile.mkstemp(prefix=".ytduo-backup-", dir=target.parent)
+    os.close(backup_fd)
+    try:
+        with os.fdopen(descriptor, "wb") as output, source.open("rb") as data:
+            shutil.copyfileobj(data, output)
+        os.chmod(temporary, target.stat().st_mode)
+        shutil.copy2(target, backup)
+        os.replace(temporary, target)
+        environment = os.environ.copy()
+        environment.pop("YTDUO_LAUNCHER", None)
+        try:
+            child = subprocess.Popen(["/bin/sh", str(target)], env=environment, start_new_session=True)
+        except Exception:
+            os.replace(backup, target)
+            raise
+    finally:
+        for path in (temporary, backup):
+            if os.path.exists(path):
+                os.unlink(path)
+    source.unlink()
+    source.parent.rmdir()
+    return child
+
 
 
 def version_parts(value):
