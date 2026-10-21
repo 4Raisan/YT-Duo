@@ -50,8 +50,12 @@ def main():
             from pathlib import Path
             from ytduo import __version__
             from ytduo.dependencies import report
+            from ytduo.updates import tls_context
             rows = report()
-            Path(diagnostic).write_text(json.dumps({"version": __version__, "dependencies": rows},
+            context = tls_context()  # Also verifies the frozen CA bundle is present.
+            Path(diagnostic).write_text(json.dumps({"version": __version__, "dependencies": rows,
+                                                   "update_tls": {"check_hostname": context.check_hostname,
+                                                                  "trusted_roots": len(context.get_ca_certs())}},
                                                    indent=2), encoding="utf-8")
             return 0 if all(ok for _name, ok, _detail in rows) else 1
         from ytduo.gui import main as gui_main
