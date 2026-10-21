@@ -1,7 +1,7 @@
-bcde74b029f55367303c5b1ebad399e779327585cda2c1b53a7aad964ef15178  linux/YT-Duo.sh
-bcde74b029f55367303c5b1ebad399e779327585cda2c1b53a7aad964ef15178  macos/YT-Duo.command
-b9de6f57710d3bee47111ed63a860f2227cc9484b18c4916ab9e201c81d650fb  windows/YT-Duo-4.6.3-Portable.exe
-4499c4ca061bceb88fcd1ffa5f7268f6439462410291fe08c266de2e04baaac7  windows/YT-Duo-4.6.3-Setup.exe
-df3661fc6fa9e49ef42cb938ec2a710244476adde2c5f5a538333c39627cc4aa  YT-Duo-4.6.3-source.zip
+28ab4bfe958801d924912d2bd3a3dcf63c40be67872d0013dad5c9375d57b3bc  linux/YT-Duo.sh
+28ab4bfe958801d924912d2bd3a3dcf63c40be67872d0013dad5c9375d57b3bc  macos/YT-Duo.command
+720cf3edb3cea49f633c605d4457aec354c8a1554f84c59895ea272d4bec2811  windows/YT-Duo-4.6.4-Portable.exe
+c32795edfc7ffb3941fb5ad04fe6d0cd13102451d0744d69e0116a89f00748fe  windows/YT-Duo-4.6.4-Setup.exe
+8edabcc0c17f5ab8ba8061a908ba2ed8941ef70ca7362d77a56bbf6f2d8fe97d  YT-Duo-4.6.4-source.zip
 2b68ad8adf4e79bf89807ab192268eaedbb3b850718896c0f3b8685168429be5  LICENSE
 e17c315dc0aeb689d10597a0e154975fcc00748845fe9b82a401dec00c0720ab  THIRD_PARTY_NOTICES.md
