@@ -56,6 +56,32 @@ jobs:
             $env:PATH = $savedPath
             Remove-Item Env:YTDUO_SELF_TEST_REPORT -ErrorAction SilentlyContinue
           }
+      - name: Check packaged replacement and restart
+        shell: pwsh
+        run: |
+          $version = python -c "from ytduo import __version__; print(__version__)"
+          $folder = Join-Path $env:RUNNER_TEMP 'ytduo-update-roundtrip'
+          New-Item -ItemType Directory -Path $folder -Force | Out-Null
+          $source = Join-Path $folder 'update.exe'
+          $target = Join-Path $folder 'YT-Duo.exe'
+          $report = Join-Path $folder 'restarted.json'
+          Copy-Item "Releases/windows/YT-Duo-$version-Portable.exe" $source
+          Set-Content -LiteralPath $target -Value 'old payload'
+          try {
+            $env:YTDUO_SELF_TEST_REPORT = $report
+            $process = Start-Process -FilePath $source -ArgumentList @('--apply-update', "`"$target`"", '0', '0') -WindowStyle Hidden -PassThru -Wait
+            if ($process.ExitCode -ne 0) { throw 'Update helper failed' }
+            $deadline = (Get-Date).AddSeconds(60)
+            while (-not (Test-Path $report) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+            if (-not (Test-Path $report)) { throw 'Updated app did not restart' }
+            $data = Get-Content $report -Raw | ConvertFrom-Json
+            if ($data.version -ne $version -or ($data.dependencies | Where-Object { -not $_[1] })) { throw 'Restarted app dependency check failed' }
+            if ((Get-FileHash $source).Hash -ne (Get-FileHash $target).Hash) { throw 'Updated EXE differs from verified payload' }
+            if (Test-Path "$target.previous") { throw 'Update backup was not cleared' }
+            Get-Content $report
+          } finally {
+            Remove-Item Env:YTDUO_SELF_TEST_REPORT -ErrorAction SilentlyContinue
+          }
       - name: Check source ZIP
         shell: pwsh
         run: |
