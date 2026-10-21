@@ -14,10 +14,58 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Download YouTube videos in the best available quality.")]
 [assembly: AssemblyProduct("YT-Duo")]
 [assembly: AssemblyCompany("4Raisan")]
-[assembly: AssemblyVersion("4.6.3.0")]
-[assembly: AssemblyFileVersion("4.6.3.0")]
+[assembly: AssemblyVersion("4.6.4.0")]
+[assembly: AssemblyFileVersion("4.6.4.0")]
 
 class Launcher {
+    static void WaitForProcess(int id) {
+        if (id <= 0) return;
+        try {
+            using (Process process = Process.GetProcessById(id)) {
+                if (!process.WaitForExit(60000))
+                    throw new IOException("Close the old YT-Duo windows and try again.");
+            }
+        } catch (ArgumentException) { } // Already exited.
+    }
+
+    static int ApplyUpdate(string[] args) {
+        string target = Path.GetFullPath(args[1]);
+        string source = Assembly.GetExecutingAssembly().Location;
+        if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(target) || String.Equals(target, source, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Invalid update destination.");
+        WaitForProcess(Int32.Parse(args[2]));
+        WaitForProcess(Int32.Parse(args[3]));
+        string backup = target + ".previous";
+        if (File.Exists(backup))
+            throw new IOException("A previous update backup exists: " + backup);
+        string stage = target + ".update-" + Guid.NewGuid().ToString("N");
+        string copy = source + ".copy";
+        try {
+            File.Copy(source, copy);
+            // Move on the same volume preserves the normal downloaded file's identity.
+            // Cross-volume copies use a same-folder stage for atomic replacement.
+            if (Path.GetPathRoot(copy) == Path.GetPathRoot(stage)) File.Move(copy, stage);
+            else { File.Copy(copy, stage); File.Delete(copy); }
+            File.Replace(stage, target, backup);
+            try {
+                ProcessStartInfo start = new ProcessStartInfo(target);
+                start.UseShellExecute = false;
+                start.WorkingDirectory = Path.GetDirectoryName(target);
+                start.EnvironmentVariables.Remove("YTDUO_LAUNCHER_PID");
+                using (Process child = Process.Start(start)) { }
+            } catch {
+                File.Replace(backup, target, null);
+                throw;
+            }
+            File.Delete(backup);
+            return 0;
+        } finally {
+            if (File.Exists(stage)) File.Delete(stage);
+            if (File.Exists(copy)) File.Delete(copy);
+            // The updater is still executing; retain only this temporary EXE until Temp cleanup.
+        }
+    }
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [DllImport("cabinet.dll", SetLastError = true)]
     static extern bool CreateDecompressor(uint algorithm, IntPtr allocator, out IntPtr handle);
@@ -118,6 +166,7 @@ class Launcher {
     [STAThread]
     static int Main(string[] args) {
         try {
+            if (args.Length == 4 && args[0] == "--apply-update") return ApplyUpdate(args);
             string cache = CacheRoot();
             string shellHelper = PrepareShell(cache);
             if (args.Length == 2 && (args[0] == "--open-folder" || args[0] == "--open-url")) {
@@ -181,6 +230,7 @@ class Launcher {
                     "YT-Duo", "data") : start.WorkingDirectory;
             start.EnvironmentVariables["YTDUO_INSTALLED"] = File.Exists(Path.Combine(start.WorkingDirectory, "installed.txt")) ? "1" : "0";
             start.EnvironmentVariables["YTDUO_LAUNCHER"] = Assembly.GetExecutingAssembly().Location;
+            start.EnvironmentVariables["YTDUO_LAUNCHER_PID"] = Process.GetCurrentProcess().Id.ToString();
             start.EnvironmentVariables["YTDUO_SHELL_HELPER"] = shellHelper;
             using (lease)
             using (Process child = Process.Start(start)) {

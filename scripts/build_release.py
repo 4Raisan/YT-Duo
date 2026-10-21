@@ -218,6 +218,8 @@ with tempfile.TemporaryDirectory(prefix="yt-duo-") as folder:
     script = '''#!/bin/sh
 # YT-Duo self-contained source launcher. Python/Tkinter/yt-dlp required.
 set -eu
+YTDUO_LAUNCHER="$(cd -- "$(dirname -- "$0")" && pwd)/$(basename -- "$0")"
+export YTDUO_LAUNCHER
 PY="${YTDUO_PYTHON:-python3}"
 if ! command -v "$PY" >/dev/null 2>&1; then
     echo "Install Python 3.10+ or set YTDUO_PYTHON." >&2
