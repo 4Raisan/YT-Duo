@@ -27,6 +27,13 @@ class DirectUpdates(unittest.TestCase):
         opener = mock.Mock()
         opener.open.side_effect = [io.BytesIO((digest+"  "+prefix+name+"\n").encode()), io.BytesIO(body)]
         return opener
+    def test_tls_keeps_certificate_and_hostname_verification_enabled(self):
+        import ssl
+        context = updates.tls_context()
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertGreater(len(context.get_ca_certs()), 0)
+
     def test_verified_asset_and_progress_without_changing_running_app(self):
         progress = mock.Mock()
         opener = self.opener()

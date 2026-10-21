@@ -8,6 +8,7 @@ YT-Duo's own code is under the [MIT License](LICENSE). Bundled components retain
 | Tcl/Tk | [Tcl/Tk license](https://www.tcl-lang.org/software/tcltk/license.html) | Bundled by PyInstaller. |
 | yt-dlp | [Unlicense and dependency notices](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE) | Python package and its default dependencies. |
 | yt-dlp-ejs | [Upstream license](https://github.com/yt-dlp/ejs) | JavaScript solver scripts; no runtime script download is enabled by YT-Duo. |
+| Certifi | [Upstream license](https://github.com/certifi/python-certifi/blob/master/LICENSE) | Public CA roots for verified update checks and downloads; package license metadata is bundled. |
 | FFmpeg / FFprobe 9.0.2 | [LGPL 2.1+](https://ffmpeg.org/legal.html), [FFmpeg source snapshot](https://github.com/FFmpeg/FFmpeg/tree/946fcce07b) | Purpose-built static FFmpeg/FFprobe with only the enabled components in scripts/build_ffmpeg.sh; includes its license and build configuration. |
 | LAME 3.100 | [LGPL 2+ and source](https://sourceforge.net/projects/lame/files/lame/3.100/) | Statically linked MP3 encoder from MSYS2; license and installed build-package versions included. |
 | Deno 2.9.7 | [MIT license and source](https://github.com/denoland/deno/tree/v2.9.7) | Official unmodified Windows binary and LICENSE.md. |

@@ -251,6 +251,7 @@ def build_windows(output):
         "--add-data", str(ROOT / "LICENSE") + os.pathsep + "licenses/YT-Duo",
         "--add-data", str(ROOT / "THIRD_PARTY_NOTICES.md") + os.pathsep + ".",
         "--collect-all", "yt_dlp_ejs", "--copy-metadata", "yt-dlp-ejs",
+        "--collect-data", "certifi", "--copy-metadata", "certifi",
         "--paths", str(ROOT / "src"), "--hidden-import", "tkinter.ttk",
         "--exclude-module", "pytest", "--exclude-module", "numpy",
         "--exclude-module", "pandas", "--exclude-module", "matplotlib",

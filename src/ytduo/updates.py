@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,14 @@ import urllib.parse
 REPO_URL = "https://github.com/4Raisan/YT-Duo"
 RELEASE_URL = REPO_URL + "/releases/latest"
 RELEASE_API = "https://api.github.com/repos/4Raisan/YT-Duo/releases/latest"
+
+
+def tls_context():
+    """Keep system trust and add the packaged public CA roots for sparse stores."""
+    import certifi
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=certifi.where())
+    return context
 
 
 class AssetRedirect(urllib.request.HTTPRedirectHandler):
@@ -51,7 +60,8 @@ def download_update(latest, progress=None, opener=None):
         relative = "macos/" if platform == "darwin" else "linux/"
     else:
         raise OSError("This platform does not support direct updates.")
-    opener = opener or urllib.request.build_opener(AssetRedirect())
+    opener = opener or urllib.request.build_opener(
+        AssetRedirect(), urllib.request.HTTPSHandler(context=tls_context()))
     base = REPO_URL + "/releases/download/v" + latest + "/"
     def open_asset(filename):
         return opener.open(urllib.request.Request(base + filename,
@@ -138,7 +148,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class UpdateChecker:
     def __init__(self, version, opener=None, clock=time.monotonic):
         self.version = version
-        self.opener = opener or urllib.request.build_opener(NoRedirect())
+        self.opener = opener or urllib.request.build_opener(
+            NoRedirect(), urllib.request.HTTPSHandler(context=tls_context()))
         self.clock = clock
         self._lock = threading.Lock()
         self._cached = None

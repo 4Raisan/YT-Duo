@@ -8,3 +8,4 @@
 # Windows portable/Setup bundles them; they are not pip packages.
 
 yt-dlp[default]>=2026.8.19
+certifi>=2024.2.2
