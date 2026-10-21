@@ -166,6 +166,9 @@ class Launcher {
     [STAThread]
     static int Main(string[] args) {
         try {
+            // A frozen Python parent may pass its private DLL search directory.
+            // Reset only this helper process before replacement or relaunch.
+            SetDllDirectory(null);
             if (args.Length == 4 && args[0] == "--apply-update") return ApplyUpdate(args);
             string cache = CacheRoot();
             string shellHelper = PrepareShell(cache);
