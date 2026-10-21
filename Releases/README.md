@@ -2,17 +2,17 @@
 
 | Platform | Portable / launcher | Installer |
 | --- | --- | --- |
-| Windows x64 | [YT-Duo-4.6.4-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-Portable.exe) | [YT-Duo-4.6.4-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-Setup.exe) |
-| Linux | [YT-Duo.sh](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo.sh) | — |
-| macOS | [YT-Duo.command](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo.command) | — |
+| Windows x64 | [YT-Duo-4.6.5-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Portable.exe) | [YT-Duo-4.6.5-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Setup.exe) |
+| Linux | [YT-Duo.sh](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo.sh) | — |
+| macOS | [YT-Duo.command](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo.command) | — |
 
-Download links point to the v4.6.4 release assets. Local builds are written to the windows, linux, and macos subfolders here. Compiled downloads are ignored by Git and distributed through GitHub Releases.
+Download links point to the v4.6.5 release assets. Local builds are written to the windows, linux, and macos subfolders here. Compiled downloads are ignored by Git and distributed through GitHub Releases.
 
 Windows builds bundle Python/Tk. Setup installs for the current user with Start menu, optional desktop shortcut, and uninstall support. Portable defaults to `YT-Duo Downloads` beside the EXE. Setup defaults to `YT-Duo Downloads` in the Windows Downloads known folder; installed settings stay under `%LOCALAPPDATA%/YT-Duo/data/.ytduo` and survive uninstall. Videos use the chosen base folder and music its `Audio` child; Browse overrides the base. Both include Python/Tk, yt-dlp with its YouTube JS helpers, FFmpeg, FFprobe and Deno. No Python, FFmpeg, Deno, winget, or system PATH setup is needed for these Windows downloads. Windows packages use lossless LZMS compression and a purpose-built FFmpeg subset to reduce download size. First launch extracts the private runtime; later launches reuse it. Settings, history and temporary audio/video files are grouped in the private `.ytduo` folder; it is hidden on Windows. Existing recognized files migrate automatically. Executables remain unsigned.
 
 Unix launchers embed app source and require Python 3.10+, Tkinter, `yt-dlp[default]`, FFmpeg, FFprobe and Deno. Run `sh YT-Duo.sh` on Linux; use `chmod +x YT-Duo.command` then double-click on macOS, or run with `sh`. Set `YTDUO_PYTHON` to select Python. Native Unix app bundles/installers are not provided.
 
-Verify files against [SHA256SUMS.txt](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
+Verify files against [SHA256SUMS.txt](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
 
 ## Dependencies
 
@@ -50,7 +50,7 @@ python -m ytduo --check-dependencies
 
 The check reports versions and locations, runs FFmpeg/FFprobe/Deno, and returns failure for missing or broken dependencies. It does not download or install anything. FFprobe normally comes with FFmpeg. The Python package named `ffmpeg` is not a substitute for these executables.
 
-[Complete v4.6.4 source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-source.zip) · [Third-party notices](../THIRD_PARTY_NOTICES.md). The ZIP contains source, project license, docs, tests, and build configuration—not preinstalled dependencies.
+[Complete v4.6.5 source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-source.zip) · [Third-party notices](../THIRD_PARTY_NOTICES.md). The ZIP contains source, project license, docs, tests, and build configuration—not preinstalled dependencies.
 
 ## Updating
 
@@ -58,4 +58,6 @@ From 4.6.4, startup automatically checks the latest stable GitHub release. **Upd
 
 Windows portable and installed apps replace their launcher at its existing path, keeping shortcuts, private settings and downloads. The original filename stays unchanged. Unix launchers replace themselves at the same path and retain permissions; Python and other installed dependencies remain managed separately. Source installs should pull the source and reinstall dependencies instead. Finish or stop downloads before updating. Failed downloads or checksum checks leave the current app untouched and show a retryable error. Windows keeps a rollback copy until the replacement launches.
 
-Versions before 4.6.4 only show release notices: download and run 4.6.4 manually once to gain direct updates. Windows SmartScreen may still ask you to approve unsigned builds.
+Versions before 4.6.4 only show release notices: download and run the latest version manually once to gain direct updates. Windows SmartScreen may still ask you to approve unsigned builds.
+
+4.6.5 adds bundled public CA roots to system trust for update checks and asset downloads on machines with incomplete CA stores. TLS certificate and hostname verification remain enabled.

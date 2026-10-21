@@ -11,11 +11,11 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 ## Download
 
-**v4.6.4 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.4)**
+**v4.6.5 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.5)**
 
 | Platform | Download |
 | --- | --- |
-| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-Setup.exe) |
+| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Setup.exe) |
 | Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.sh) |
 | macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.command) |
 
@@ -23,7 +23,7 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 **Linux/macOS and source installs:** follow the [dependency setup guide](Releases/README.md#dependencies).
 
-Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.4/YT-Duo-4.6.4-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
+Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
 
 ## Quick start
 

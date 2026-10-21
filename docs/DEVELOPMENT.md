@@ -106,3 +106,7 @@ FFmpeg 9.0.2 is compiled from pinned source using scripts/build_ffmpeg.sh in MSY
 Windows downloads the portable payload for both distributions. Its new C# launcher handles --apply-update before payload extraction, waits for the old Python/launcher processes, atomically replaces the existing EXE with a rollback copy, then relaunches from the same directory. Installed markers, shortcuts, config and media are untouched. Unix launchers export their original path before entering the temporary Python source payload; an atomic same-directory rename keeps file permissions and starts the updated launcher. Source checkouts deliberately require a source upgrade.
 
 Only HTTPS GitHub/release-asset redirects are allowed. Asset names and URLs derive from a validated numeric stable tag, rather than arbitrary release links. Checksums detect corruption; they are supplied by the same repository and are not independent publisher signatures. A new release must keep versioned assets and the checksum manifest together. Pre-4.6.4 builds require a manual upgrade once.
+
+### 4.6.5 TLS follow-up
+
+The live release-asset check exposed an incomplete system CA store on the local Windows Python installation. Update checks and asset downloads now use a verified SSL context combining system roots with Certifi public roots; hostname and certificate verification remain required. Certifi is an explicit source dependency and its data is collected into Windows builds. This does not disable verification or change Windows trust settings.

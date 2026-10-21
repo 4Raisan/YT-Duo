@@ -1,5 +1,5 @@
 ; Build with Inno Setup 6. Installed state lives outside the application folder.
-#define AppVersion "4.6.4"
+#define AppVersion "4.6.5"
 #ifndef PortableExePath
 #define PortableExePath "..\build\release-stage\windows\YT-Duo-" + AppVersion + "-Portable.exe"
 #endif
