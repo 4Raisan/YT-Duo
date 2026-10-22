@@ -56,7 +56,7 @@ def download_update(latest, progress=None, opener=None):
     if platform == "win32":
         name, relative = "YT-Duo-" + latest + "-Portable.exe", "windows/"
     elif platform in ("linux", "darwin"):
-        name = "YT-Duo.command" if platform == "darwin" else "YT-Duo.sh"
+        name = "YT-Duo-" + latest + ("-macOS.command" if platform == "darwin" else "-Linux.sh")
         relative = "macos/" if platform == "darwin" else "linux/"
     else:
         raise OSError("This platform does not support direct updates.")
@@ -70,11 +70,12 @@ def download_update(latest, progress=None, opener=None):
         raw = response.read(65537)
     if len(raw) > 65536:
         raise ValueError("Update checksum list is too large")
-    expected = []
-    for line in raw.decode("utf-8-sig").splitlines():
-        parts = line.split()
-        if len(parts) == 2 and parts[1] in (name, relative + name):
-            expected.append(parts[0])
+    entries = [line.split() for line in raw.decode("utf-8-sig").splitlines()]
+    expected = [parts[0] for parts in entries if len(parts) == 2 and parts[1] in (name, relative + name)]
+    if not expected and platform in ("linux", "darwin"):
+        # Older releases shipped unversioned launchers only.
+        name = "YT-Duo.command" if platform == "darwin" else "YT-Duo.sh"
+        expected = [parts[0] for parts in entries if len(parts) == 2 and parts[1] in (name, relative + name)]
     if len(expected) != 1 or not re.fullmatch("[a-fA-F0-9]{64}", expected[0]):
         raise ValueError("Missing or ambiguous update checksum")
     folder = Path(tempfile.mkdtemp(prefix="ytduo-update-"))
@@ -96,6 +97,22 @@ def download_update(latest, progress=None, opener=None):
     except Exception:
         shutil.rmtree(folder)
         raise
+
+
+def discard_update(staged):
+    """Remove only a known downloaded asset in an app-owned temporary folder."""
+    source = Path(staged).absolute()
+    folder = source.parent
+    if (folder.parent.resolve() != Path(tempfile.gettempdir()).resolve()
+            or not folder.name.startswith("ytduo-update-") or folder.is_symlink()
+            or source.is_symlink()
+            or not re.fullmatch(r"YT-Duo(?:-\d+\.\d+\.\d+-(?:Portable\.exe|Linux\.sh|macOS\.command)|\.sh|\.command)", source.name)):
+        return
+    try:
+        source.unlink(missing_ok=True)
+        folder.rmdir()  # Never recursively delete unexpected files.
+    except OSError:
+        pass
 
 
 def apply_update(staged):
@@ -128,8 +145,11 @@ def apply_update(staged):
         for path in (temporary, backup):
             if os.path.exists(path):
                 os.unlink(path)
-    source.unlink()
-    source.parent.rmdir()
+    try:
+        source.unlink()
+        source.parent.rmdir()
+    except OSError:
+        pass  # A successful restart must not be reported as a failed update.
     return child
 
 

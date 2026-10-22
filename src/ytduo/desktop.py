@@ -130,7 +130,9 @@ class WindowChrome:
         self.user.MonitorFromWindow.argtypes = [ctypes.c_void_p, ctypes.c_uint]
         self.user.MonitorFromWindow.restype = ctypes.c_void_p
         self.user.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(MonitorInfo)]
-        self.user.PhysicalToLogicalPointForPerMonitorDPI.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.POINT)]
+        self.user.IsIconic.argtypes = [ctypes.c_void_p]
+        self.user.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+        self.user.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
         self.user.SetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
         self.gdi = ctypes.WinDLL("gdi32", use_last_error=True)
         self.gdi.CreateRoundRectRgn.argtypes = [ctypes.c_int] * 6
@@ -178,26 +180,54 @@ class WindowChrome:
         if self.hwnd:
             self.user.ShowWindow(self.hwnd, 6)
 
-    def keep_on_screen(self):
-        """Fit a newly expanded layout without changing the user's drag loop."""
-        if not self.hwnd:
-            return
+    @contextmanager
+    def _physical_coordinates(self):
+        previous = self.user.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+        try:
+            yield
+        finally:
+            if previous:
+                self.user.SetThreadDpiAwarenessContext(previous)
+
+    def work_area(self):
+        """Current monitor work bounds in physical virtual-desktop coordinates."""
+        if not self.hwnd or self.user.IsIconic(self.hwnd):
+            return None
         info = MonitorInfo()
         info.size = ctypes.sizeof(info)
-        monitor = self.user.MonitorFromWindow(self.hwnd, 2)
+        with self._physical_coordinates():
+            monitor = self.user.MonitorFromWindow(self.hwnd, 2)
+            if not self.user.GetMonitorInfoW(monitor, ctypes.byref(info)):
+                return None
+        return info.work.left, info.work.top, info.work.right, info.work.bottom
+
+    def layout_height(self, bounds):
+        """Convert the monitor height to Tk units without converting off-window points."""
+        logical, physical = wintypes.RECT(), wintypes.RECT()
+        if not self.user.GetWindowRect(self.hwnd, ctypes.byref(logical)):
+            return bounds[3] - bounds[1]
+        with self._physical_coordinates():
+            if not self.user.GetWindowRect(self.hwnd, ctypes.byref(physical)):
+                return bounds[3] - bounds[1]
+        ratio = (logical.bottom-logical.top) / max(1, physical.bottom-physical.top)
+        return round((bounds[3]-bounds[1]) * ratio)
+
+    def keep_on_screen(self, bounds=None):
+        """Fit to the monitor captured before expansion; preserve negative origins."""
+        if not self.hwnd or self.user.IsIconic(self.hwnd):
+            return
+        bounds = bounds or self.work_area()
+        if not bounds:
+            return
         rect = wintypes.RECT()
-        if not self.user.GetMonitorInfoW(monitor, ctypes.byref(info)) or not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
-            return
-        start = wintypes.POINT(info.work.left, info.work.top)
-        end = wintypes.POINT(info.work.right, info.work.bottom)
-        # Monitor work bounds are physical; GetWindowRect is virtualized for
-        # DPI-unaware Tk windows. Convert using this window's awareness.
-        if not self.user.PhysicalToLogicalPointForPerMonitorDPI(self.hwnd, ctypes.byref(start)) or not self.user.PhysicalToLogicalPointForPerMonitorDPI(self.hwnd, ctypes.byref(end)):
-            return
-        x = max(start.x, min(rect.left, end.x - (rect.right-rect.left)))
-        y = max(start.y, min(rect.top, end.y - (rect.bottom-rect.top)))
-        if (x, y) != (rect.left, rect.top):
-            self.user.SetWindowPos(self.hwnd, None, x, y, 0, 0, 0x0015)
+        with self._physical_coordinates():
+            if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
+                return
+            left, top, right, bottom = bounds
+            x = max(left, min(rect.left, right - (rect.right-rect.left)))
+            y = max(top, min(rect.top, bottom - (rect.bottom-rect.top)))
+            if (x, y) != (rect.left, rect.top):
+                self.user.SetWindowPos(self.hwnd, None, x, y, 0, 0, 0x0015)
 
     def bind_drag(self, widget):
         def start(event):

@@ -146,3 +146,22 @@ class UpdateTest {
                 updates.apply_update(stage)
         self.assertEqual(self.target.read_bytes(), b"old app")
         self.assertEqual(list(self.root.glob(".ytduo-*")), [])
+
+    def test_versioned_unix_assets_are_selected_before_legacy_aliases(self):
+        for platform, name, prefix in (("linux","YT-Duo-4.6.4-Linux.sh","linux/"),
+                                       ("darwin","YT-Duo-4.6.4-macOS.command","macos/")):
+            with mock.patch.object(updates.sys,"platform",platform):
+                stage=Path(updates.download_update("4.6.4",opener=self.opener(name=name,prefix=prefix)))
+            self.assertEqual(stage.name,name)
+            updates.discard_update(stage)
+            self.assertFalse(stage.parent.exists())
+    def test_discard_does_not_remove_unrelated_or_unexpected_files(self):
+        self.target.write_bytes(b"preserved")
+        updates.discard_update(self.target)
+        self.assertEqual(self.target.read_bytes(),b"preserved")
+        with tempfile.TemporaryDirectory(prefix="ytduo-update-") as folder:
+            source=Path(folder)/"YT-Duo.sh";source.write_text("stage")
+            keep=Path(folder)/"keep.txt";keep.write_text("user data")
+            updates.discard_update(source)
+            self.assertFalse(source.exists())
+            self.assertEqual(keep.read_text(),"user data")

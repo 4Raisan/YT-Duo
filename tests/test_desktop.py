@@ -52,18 +52,31 @@ class NativeDragTests(unittest.TestCase):
             pointer._obj.work.right, pointer._obj.work.bottom = 1920, 1040
             return 1
         def rectangle(hwnd, pointer):
-            pointer._obj.left, pointer._obj.top = 80, 80
-            pointer._obj.right, pointer._obj.bottom = 824, 892
+            pointer._obj.left, pointer._obj.top = 80, 800
+            pointer._obj.right, pointer._obj.bottom = 824, 1612
             return 1
         def logical(hwnd, pointer):
             pointer._obj.x = round(pointer._obj.x / 1.25)
             pointer._obj.y = round(pointer._obj.y / 1.25)
             return 1
+        chrome.user.IsIconic.return_value = False
         chrome.user.GetMonitorInfoW.side_effect = work_area
         chrome.user.GetWindowRect.side_effect = rectangle
         chrome.user.PhysicalToLogicalPointForPerMonitorDPI.side_effect = logical
         chrome.keep_on_screen()
-        chrome.user.SetWindowPos.assert_called_once_with(123, None, 80, 20, 0, 0, 0x0015)
+        chrome.user.SetWindowPos.assert_called_once_with(123, None, 80, 228, 0, 0, 0x0015)
+
+    def test_negative_monitor_origins_are_preserved_when_fitting(self):
+        chrome = desktop.WindowChrome.__new__(desktop.WindowChrome)
+        chrome.hwnd, chrome.user = 123, mock.Mock()
+        chrome.user.IsIconic.return_value = False
+        def rectangle(hwnd, pointer):
+            pointer._obj.left, pointer._obj.top = -1650, -950
+            pointer._obj.right, pointer._obj.bottom = -850, -200
+            return 1
+        chrome.user.GetWindowRect.side_effect = rectangle
+        chrome.keep_on_screen((-1600,-900,0,0))
+        chrome.user.SetWindowPos.assert_called_once_with(123,None,-1600,-900,0,0,0x0015)
 
     def test_drag_uses_windows_move_loop_without_tk_geometry_updates(self):
         chrome = desktop.WindowChrome.__new__(desktop.WindowChrome)

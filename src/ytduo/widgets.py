@@ -202,6 +202,8 @@ class Button(Animated, tk.Canvas):
 
     def _base_color(self):
         p = self.palette
+        if self.kind == "update":
+            return theme.mix_alpha("#39ffad", p["surface"], 0.16)
         if self._active:
             return theme.mix_alpha(p["accent"], p["surface"], 0.22)
         if self.kind == "primary":
@@ -212,6 +214,8 @@ class Button(Animated, tk.Canvas):
 
     def _hover_color(self):
         p = self.palette
+        if self.kind == "update":
+            return theme.mix_alpha("#39ffad", p["surface"], 0.30)
         if self._active:
             return theme.mix_alpha(p["accent"], p["surface"], 0.36)
         if self.kind == "primary":
@@ -222,6 +226,9 @@ class Button(Animated, tk.Canvas):
 
     def _text_color(self):
         p = self.palette
+        if self.kind == "update":
+            color = "#006b40" if sum(theme._hex_to_rgb(p["surface"])) > 500 else "#39ffad"
+            return color if self._enabled else p["text_faint"]
         if self._active and self._enabled:
             return p["accent"]
         if self.kind == "primary":
@@ -294,8 +301,10 @@ class Button(Animated, tk.Canvas):
         fill = self._current_color
         # A pressed button sits 1px lower for tactile feedback.
         offset = 1 if self._pressed else 0
-        _rounded_rect(self, 0, offset, w, h - 1 + offset, self.radius,
-                      fill=fill, outline=p["accent"] if self._active else "")
+        # Keep the entire stroke inside the Canvas, including pressed states.
+        outline = "#39ffad" if self.kind == "update" else (p["accent"] if self._active else "")
+        _rounded_rect(self, 2, 2 + offset, w - 2, h - 3 + offset, self.radius,
+                      fill=fill, outline=outline, width=2 if self.kind == "update" else 1)
         label = f"{self.icon}  {self.text}" if self.icon else self.text
         self.create_text(w / 2, (h - 1) / 2 + offset, text=label,
                          fill=self._text_color(), font=self._font)

@@ -459,8 +459,7 @@ class YtDuoApp:
         self.star_button.pack(side="right")
         self.update_button = widgets.Button(self.footer_row, "Update to latest",
             self.update_to_latest, self.palette, self.fonts,
-            kind="ghost", height=26, font_key="small", padding=(10, 0))
-        self.update_button.pack(side="right", padx=(0, 6))
+            kind="update", height=26, font_key="small", padding=(10, 0))
 
     def _open_project_url(self, url):
         self._external_action("url", url, lambda: desktop.open_url(url))
@@ -516,12 +515,14 @@ class YtDuoApp:
         status = result.get("status")
         if status == "available":
             text = "Update " + result["latest"] + " available"
+            self.update_button.pack(side="right", padx=(0, 6))
         else:
+            self.update_button.pack_forget()
             text = {"current": "Up to date", "unpublished": "No release published"}.get(
                 status, "Update check unavailable")
             if status not in ("current", "unpublished"):
                 self.append_log("Update check failed. " + result.get("reason", "Could not reach GitHub.")
-                                + " Press Update to latest to retry.", "error")
+                                + " The next launch checks again.", "error")
         self.update_status.configure(text="v" + __version__ + " · " + text,
             fg=self.palette["success"] if status == "available" else self.palette["text_dim"])
         self._autosize()
@@ -572,6 +573,7 @@ class YtDuoApp:
 
     def _on_update_downloaded(self, data):
         if self._destroyed:
+            updates.discard_update(data["path"])
             return
         try:
             if self.worker and self.worker.is_alive():
@@ -579,6 +581,7 @@ class YtDuoApp:
             self._save_settings()
             updates.apply_update(data["path"])
         except Exception as exc:
+            updates.discard_update(data["path"])
             self._on_update_failed({"error": str(exc)})
             return
         self.destroy()
@@ -1233,13 +1236,19 @@ class YtDuoApp:
 
     def _autosize(self):
         try:
+            if self.root.state() == "iconic":
+                return  # Restore/map will settle layout; do not move a minimized window.
             self.root.update_idletasks()
+            # Capture the current monitor BEFORE changing size. Never clamp a
+            # secondary monitor's coordinates against the primary Tk screen.
+            work_area = self.chrome.work_area() if self.chrome else None
             # Tk's cached non-client border size can differ after Windows
             # caption removal. Reusing the observed client width repeatedly
             # would grow the window each time Music or Options is toggled.
             # Only one large panel is open. Give its content a compact
             # viewport of its own (queue / log), never a scrolling app page.
-            cap = max(260, self.root.winfo_screenheight() - 64)
+            cap = max(260, self.chrome.layout_height(work_area) - 16 if work_area
+                      else self.root.winfo_screenheight() - 64)
             if getattr(self, "_tight_layout", False):
                 self._tight_layout = False
                 self._repack()
@@ -1257,7 +1266,7 @@ class YtDuoApp:
             width = max(self.shell.winfo_reqwidth() + 6, 640)
             height = self.shell.winfo_reqheight() + 6
             geometry = f"{width}x{height}"
-            if self.root.winfo_ismapped():
+            if not self.chrome and self.root.winfo_ismapped():
                 x, y = self.root.winfo_x(), self.root.winfo_y()
                 fitted_y = max(0, min(y, self.root.winfo_screenheight() - height - 48))
                 if fitted_y != y:
@@ -1265,7 +1274,7 @@ class YtDuoApp:
             self.root.geometry(geometry)
             self.root.update_idletasks()
             if self.chrome:
-                self.chrome.keep_on_screen()
+                self.chrome.keep_on_screen(work_area)
         except tk.TclError:
             pass
 
