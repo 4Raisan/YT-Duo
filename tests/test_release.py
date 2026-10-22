@@ -69,6 +69,13 @@ class PayloadTest {
             with zipfile.ZipFile(io.BytesIO(base64.b64decode(ast.literal_eval(literal)))) as payload:
                 self.assertTrue(payload.read("ytduo/assets/icon.png").startswith(b"\x89PNG"))
 
+    def test_unix_versioned_downloads_match_legacy_update_aliases(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output=Path(folder)
+            build_release.build_unix(output)
+            self.assertEqual((output/f"YT-Duo-{__version__}-Linux.sh").read_bytes(),(output/"YT-Duo.sh").read_bytes())
+            self.assertEqual((output/f"YT-Duo-{__version__}-macOS.command").read_bytes(),(output/"YT-Duo.command").read_bytes())
+
     def test_checksums_exclude_runtime_executables(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder)

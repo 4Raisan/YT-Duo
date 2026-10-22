@@ -227,7 +227,7 @@ if ! command -v "$PY" >/dev/null 2>&1; then
 fi
 exec "$PY" - "$@" <<'YTDUO_SOURCE'
 ''' + bootstrap + "YTDUO_SOURCE\n"
-    for name in ("YT-Duo.sh", "YT-Duo.command"):
+    for name in ("YT-Duo.sh", "YT-Duo.command", "YT-Duo-" + version() + "-Linux.sh", "YT-Duo-" + version() + "-macOS.command"):
         path = output / name
         path.write_text(script, encoding="utf-8", newline="\n")
         path.chmod(0o755)
@@ -313,7 +313,8 @@ def compress_windows_payload(source, destination):
 
 def checksums(output):
     lines = []
-    for name in ("linux/YT-Duo.sh", "macos/YT-Duo.command",
+    for name in ("linux/YT-Duo-" + version() + "-Linux.sh", "macos/YT-Duo-" + version() + "-macOS.command",
+                 "linux/YT-Duo.sh", "macos/YT-Duo.command",
                  ("windows/YT-Duo-" + version() + "-Portable.exe"), ("windows/YT-Duo-" + version() + "-Setup.exe"),
                  "YT-Duo-" + version() + "-source.zip", "LICENSE", "THIRD_PARTY_NOTICES.md"):
         path = output / name
@@ -334,7 +335,9 @@ def main():
     unix_stage = ROOT / "build/unix"
     unix_stage.mkdir(parents=True, exist_ok=True)
     build_unix(unix_stage)
-    for platform, filename in (("linux", "YT-Duo.sh"), ("macos", "YT-Duo.command")):
+    for platform, filename in (("linux", "YT-Duo.sh"), ("macos", "YT-Duo.command"),
+                               ("linux", "YT-Duo-" + version() + "-Linux.sh"),
+                               ("macos", "YT-Duo-" + version() + "-macOS.command")):
         destination = staging / platform
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(unix_stage / filename, destination / filename)

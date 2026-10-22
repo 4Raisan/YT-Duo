@@ -62,10 +62,13 @@ jobs:
           $version = python -c "from ytduo import __version__; print(__version__)"
           $folder = Join-Path $env:RUNNER_TEMP 'ytduo-update-roundtrip'
           New-Item -ItemType Directory -Path $folder -Force | Out-Null
-          $source = Join-Path $folder 'update.exe'
+          $updateFolder = Join-Path ([IO.Path]::GetTempPath()) ("ytduo-update-" + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $updateFolder | Out-Null
+          $source = Join-Path $updateFolder "YT-Duo-$version-Portable.exe"
           $target = Join-Path $folder 'YT-Duo.exe'
           $report = Join-Path $folder 'restarted.json'
           Copy-Item "Releases/windows/YT-Duo-$version-Portable.exe" $source
+          $expectedHash = (Get-FileHash $source).Hash
           Set-Content -LiteralPath $target -Value 'old payload'
           try {
             $env:YTDUO_SELF_TEST_REPORT = $report
@@ -76,8 +79,9 @@ jobs:
             if (-not (Test-Path $report)) { throw 'Updated app did not restart' }
             $data = Get-Content $report -Raw | ConvertFrom-Json
             if ($data.version -ne $version -or ($data.dependencies | Where-Object { -not $_[1] })) { throw 'Restarted app dependency check failed' }
-            if ((Get-FileHash $source).Hash -ne (Get-FileHash $target).Hash) { throw 'Updated EXE differs from verified payload' }
+            if ($expectedHash -ne (Get-FileHash $target).Hash) { throw 'Updated EXE differs from verified payload' }
             if (Test-Path "$target.previous") { throw 'Update backup was not cleared' }
+            if (Test-Path $updateFolder) { throw 'Temporary update stage was not removed' }
             Get-Content $report
           } finally {
             Remove-Item Env:YTDUO_SELF_TEST_REPORT -ErrorAction SilentlyContinue

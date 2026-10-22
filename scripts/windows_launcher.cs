@@ -14,8 +14,8 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Download YouTube videos in the best available quality.")]
 [assembly: AssemblyProduct("YT-Duo")]
 [assembly: AssemblyCompany("4Raisan")]
-[assembly: AssemblyVersion("4.6.5.0")]
-[assembly: AssemblyFileVersion("4.6.5.0")]
+[assembly: AssemblyVersion("4.6.6.0")]
+[assembly: AssemblyFileVersion("4.6.6.0")]
 
 class Launcher {
     static void WaitForProcess(int id) {
@@ -53,6 +53,8 @@ class Launcher {
                 start.UseShellExecute = false;
                 start.WorkingDirectory = Path.GetDirectoryName(target);
                 start.EnvironmentVariables.Remove("YTDUO_LAUNCHER_PID");
+                start.EnvironmentVariables["YTDUO_UPDATE_STAGE"] = source;
+                start.EnvironmentVariables["YTDUO_UPDATE_HELPER_PID"] = Process.GetCurrentProcess().Id.ToString();
                 using (Process child = Process.Start(start)) { }
             } catch {
                 File.Replace(backup, target, null);
@@ -63,8 +65,31 @@ class Launcher {
         } finally {
             if (File.Exists(stage)) File.Delete(stage);
             if (File.Exists(copy)) File.Delete(copy);
-            // The updater is still executing; retain only this temporary EXE until Temp cleanup.
+            // The new launcher removes the staged EXE after this process exits.
         }
+    }
+
+    static void CleanupUpdateStage() {
+        string source = Environment.GetEnvironmentVariable("YTDUO_UPDATE_STAGE");
+        string pid = Environment.GetEnvironmentVariable("YTDUO_UPDATE_HELPER_PID");
+        Environment.SetEnvironmentVariable("YTDUO_UPDATE_STAGE", null);
+        Environment.SetEnvironmentVariable("YTDUO_UPDATE_HELPER_PID", null);
+        if (String.IsNullOrEmpty(source)) return;
+        try {
+            source = Path.GetFullPath(source);
+            DirectoryInfo folder = new DirectoryInfo(Path.GetDirectoryName(source));
+            string temp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
+            if (folder.Parent == null || !String.Equals(folder.Parent.FullName, temp, StringComparison.OrdinalIgnoreCase) ||
+                !folder.Name.StartsWith("ytduo-update-", StringComparison.Ordinal) ||
+                (folder.Attributes & FileAttributes.ReparsePoint) != 0 ||
+                !System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(source), @"^YT-Duo-\d+\.\d+\.\d+-Portable\.exe$") ||
+                (File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0) return;
+            int helper;
+            if (!Int32.TryParse(pid, out helper) || helper == Process.GetCurrentProcess().Id) return;
+            WaitForProcess(helper);
+            File.Delete(source);
+            if (Directory.GetFileSystemEntries(folder.FullName).Length == 0) Directory.Delete(folder.FullName);
+        } catch (IOException) {} catch (UnauthorizedAccessException) {} catch (ArgumentException) {}
     }
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [DllImport("cabinet.dll", SetLastError = true)]
@@ -146,11 +171,10 @@ class Launcher {
         Array.Sort(versions, delegate(DirectoryInfo a, DirectoryInfo b) {
             return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc);
         });
-        int retained = 0;
         foreach (DirectoryInfo version in versions) {
             if (!System.Text.RegularExpressions.Regex.IsMatch(version.Name, "^[a-f0-9]{64}$") ||
                 (version.Attributes & FileAttributes.ReparsePoint) != 0) continue;
-            if (version.FullName == current || retained++ < 1) continue;
+            if (version.FullName == current) continue;
             string lease = Path.Combine(version.FullName, "in-use.lock");
             // Legacy caches without a lease may belong to an older running app.
             if (!File.Exists(lease)) continue;
@@ -163,6 +187,24 @@ class Launcher {
         }
     }
 
+    static void PruneShellHelpers(string cache, string current, string currentRuntime) {
+        // PruneIdleRuntimes has already removed inactive leased runtimes.
+        // Any other remaining runtime may still need its own shell helper.
+        foreach (DirectoryInfo runtime in new DirectoryInfo(cache).GetDirectories()) {
+            if (runtime.FullName != currentRuntime &&
+                System.Text.RegularExpressions.Regex.IsMatch(runtime.Name, "^[a-f0-9]{64}$")) return;
+        }
+        DirectoryInfo root = new DirectoryInfo(Path.Combine(cache, "shell"));
+        if (!root.Exists) return;
+        foreach (DirectoryInfo folder in root.GetDirectories()) {
+            if (folder.FullName == Path.GetDirectoryName(current) ||
+                !System.Text.RegularExpressions.Regex.IsMatch(folder.Name, "^[a-f0-9]{64}$") ||
+                (folder.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+            try { Directory.Delete(folder.FullName, true); }
+            catch (IOException) {} catch (UnauthorizedAccessException) {}
+        }
+    }
+
     [STAThread]
     static int Main(string[] args) {
         try {
@@ -170,6 +212,7 @@ class Launcher {
             // Reset only this helper process before replacement or relaunch.
             SetDllDirectory(null);
             if (args.Length == 4 && args[0] == "--apply-update") return ApplyUpdate(args);
+            CleanupUpdateStage();
             string cache = CacheRoot();
             string shellHelper = PrepareShell(cache);
             if (args.Length == 2 && (args[0] == "--open-folder" || args[0] == "--open-url")) {
@@ -221,6 +264,8 @@ class Launcher {
                 if (!File.Exists(leasePath)) using (File.Create(leasePath)) {}
                 lease = new FileStream(leasePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 PruneIdleRuntimes(cache, target);
+                shellHelper = PrepareShell(cache);
+                PruneShellHelpers(cache, shellHelper, target);
             }
             if (!File.Exists(executable)) throw new IOException("The cached app is missing. Remove its runtime cache and retry.");
             ProcessStartInfo start = new ProcessStartInfo(executable);
