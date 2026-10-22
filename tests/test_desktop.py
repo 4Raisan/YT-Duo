@@ -160,6 +160,25 @@ class NativeFolderTests(unittest.TestCase):
         chrome.gdi.CreateRoundRectRgn.return_value = 456
         chrome.round_corners()
         chrome.round_corners()
-        chrome.gdi.CreateRoundRectRgn.assert_called_once_with(0, 0, 641, 401, 24, 24)
+        chrome.gdi.CreateRoundRectRgn.assert_called_once_with(0, 0, 642, 402, 24, 24)
         chrome.user.SetWindowRgn.assert_called_once_with(123, 456, True)
         chrome.gdi.DeleteObject.assert_not_called()
+
+    def test_rounding_rebuilds_region_when_only_monitor_scaling_changes(self):
+        chrome = desktop.WindowChrome.__new__(desktop.WindowChrome)
+        chrome.root, chrome.user, chrome.gdi = mock.Mock(), mock.Mock(), mock.Mock()
+        chrome.hwnd, chrome._rounded_size = 123, None
+        physical = [800,500]
+        calls = [0]
+        def rect(hwnd,pointer):
+            calls[0] += 1
+            width,height = (640,400) if calls[0]%2 else physical
+            r=pointer._obj;r.left=r.top=0;r.right=width;r.bottom=height
+            return 1
+        chrome.user.GetWindowRect.side_effect=rect
+        chrome.round_corners()
+        chrome.round_corners()
+        self.assertEqual(chrome.user.SetWindowRgn.call_count,1)
+        physical[:]=[960,600]
+        chrome.round_corners()
+        self.assertEqual(chrome.user.SetWindowRgn.call_count,2)
