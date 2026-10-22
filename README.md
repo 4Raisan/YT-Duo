@@ -11,19 +11,19 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 ## Download
 
-**v4.6.5 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.5)**
+**v4.6.6 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.6.6)**
 
 | Platform | Download |
 | --- | --- |
-| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-Setup.exe) |
-| Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.sh) |
-| macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/latest/download/YT-Duo.command) |
+| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Setup.exe) |
+| Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Linux.sh) |
+| macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-macOS.command) |
 
 **Windows:** Python, Tk, yt-dlp, YouTube JS helpers, FFmpeg, FFprobe, and Deno are included—no separate dependency installation.
 
 **Linux/macOS and source installs:** follow the [dependency setup guide](Releases/README.md#dependencies).
 
-Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.5/YT-Duo-4.6.5-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
+Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
 
 ## Quick start
 
@@ -35,7 +35,7 @@ Use **Browse** to change the save folder. Setup defaults to your Windows Downloa
 
 Also included: queues, pause/resume/stop, duplicate-download prompts, eight themes, adjustable text size, and update checks.
 
-The app checks for updates on startup. Click **Update to latest** to download, verify, and restart into the latest stable release. Finish active downloads first. Builds older than 4.6.4 need one manual upgrade. **Star on GitHub** opens the repository.
+The app checks for updates on startup. A green neon **Update to latest** button appears only when a newer version is found; click it to download, verify, and restart. Finish active downloads first. Builds older than 4.6.4 need one manual upgrade. **Star on GitHub** opens the repository.
 
 ## Run from source
 

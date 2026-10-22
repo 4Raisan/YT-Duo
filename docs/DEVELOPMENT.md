@@ -110,3 +110,11 @@ Only HTTPS GitHub/release-asset redirects are allowed. Asset names and URLs deri
 ### 4.6.5 TLS follow-up
 
 The live release-asset check exposed an incomplete system CA store on the local Windows Python installation. Update checks and asset downloads now use a verified SSL context combining system roots with Certifi public roots; hostname and certificate verification remain required. Certifi is an explicit source dependency and its data is collected into Windows builds. This does not disable verification or change Windows trust settings.
+
+## 4.6.6 monitor layout and update maintenance
+
+Window sizing captures the current monitor before expanding Options or Terminal. Native monitor bounds and repositioning share a scoped physical DPI coordinate space; available height is converted to Tk units using the actual window rectangle ratio. This avoids failed point conversions outside the window, primary-screen assumptions and lost negative monitor origins. Minimized windows defer layout until restored. Button strokes are inset inside their Canvas even when pressed.
+
+The update action is hidden at startup and for current/unavailable releases; only a confirmed newer stable version shows its green outline. Linux/macOS primary assets include their version and platform. Small unversioned aliases remain for older updaters. The new updater prefers versioned assets and accepts legacy manifests.
+
+Windows waits for the old launcher and Python process, replaces the verified payload and restarts. The new launcher waits for the updater to exit, removes only its recognized temporary EXE in an owned temporary directory, and removes that directory only when empty. Idle runtimes with a lease are pruned; current, active, linked and unrecognized directories are retained. Old shell helpers are removed when unlocked. Unix cleanup errors after successful restart are nonfatal. Settings and finished media are outside these cleanup paths.
