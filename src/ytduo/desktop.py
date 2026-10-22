@@ -165,23 +165,23 @@ class WindowChrome:
         rect = wintypes.RECT()
         if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
             return
-        logical_width = max(1, rect.right - rect.left)
+        logical_size = rect.right - rect.left, rect.bottom - rect.top
         with self._physical_coordinates():
             if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
                 return
-            size = rect.right - rect.left, rect.bottom - rect.top
-            diameter = max(1, round(24 * size[0] / logical_width))
-            key = size + (diameter,)
-            if min(size) < 30 or key == self._rounded_size:
-                return
-            region = self.gdi.CreateRoundRectRgn(0, 0, size[0]+1, size[1]+1, diameter, diameter)
-            if region:
-                # Include physical size/DPI in the cache; a logical size may
-                # stay constant while Windows scales the window on a new monitor.
-                self._rounded_size = key
-                if not self.user.SetWindowRgn(self.hwnd, region, True):
-                    self.gdi.DeleteObject(region)
-                    self._rounded_size = None
+            physical_size = rect.right - rect.left, rect.bottom - rect.top
+        key = logical_size + physical_size
+        if min(logical_size) < 30 or key == self._rounded_size:
+            return
+        # SetWindowRgn scales its input for the target window. Supply Tk's
+        # logical units once, but invalidate on physical/DPI changes as well.
+        # One extra logical pixel covers fractional-DPI rounding at the far edges.
+        region = self.gdi.CreateRoundRectRgn(0, 0, logical_size[0]+2, logical_size[1]+2, 24, 24)
+        if region:
+            self._rounded_size = key
+            if not self.user.SetWindowRgn(self.hwnd, region, True):
+                self.gdi.DeleteObject(region)
+                self._rounded_size = None
 
     def minimize(self):
         if self.hwnd:

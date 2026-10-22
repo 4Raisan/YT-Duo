@@ -2,6 +2,7 @@
 import ctypes
 from ctypes import wintypes
 import re
+import math
 import sys
 from unittest import mock
 from tests.test_gui import GuiTestCase
@@ -63,6 +64,7 @@ class MonitorLayout(GuiTestCase):
         user.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
         user.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(desktop.MonitorInfo)]
         user.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)]
+        user.IsIconic.argtypes = [ctypes.c_void_p]
         user.GetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         gdi = ctypes.WinDLL("gdi32", use_last_error=True)
         gdi.CreateRectRgn.argtypes = [ctypes.c_int]*4
@@ -96,6 +98,7 @@ class MonitorLayout(GuiTestCase):
                                lambda: self.app.toggle_log(True),
                                lambda: self.app.toggle_settings(True)):
                     action(); self.tk.update()
+                    if user.IsIconic(hwnd): self.skipTest("Desktop minimized the monitor-test window")
                     context = user.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
                     try:
                         rect = wintypes.RECT(); user.GetWindowRect(hwnd, ctypes.byref(rect))
@@ -109,8 +112,9 @@ class MonitorLayout(GuiTestCase):
                     with self.subTest(scale=scale, monitor=bounds):
                         self.assertGreaterEqual(region_box.right, rect.right-rect.left)
                         self.assertGreaterEqual(region_box.bottom, rect.bottom-rect.top)
-                        self.assertLessEqual(region_box.right, rect.right-rect.left+1)
-                        self.assertLessEqual(region_box.bottom, rect.bottom-rect.top+1)
+                        margin = math.ceil((rect.right-rect.left) / max(1,self.tk.winfo_width())) + 1
+                        self.assertLessEqual(region_box.right, rect.right-rect.left+margin)
+                        self.assertLessEqual(region_box.bottom, rect.bottom-rect.top+margin)
                         self.assertGreaterEqual(rect.left, bounds[0])
                         self.assertGreaterEqual(rect.top, bounds[1])
                         self.assertLessEqual(rect.right, bounds[2])
