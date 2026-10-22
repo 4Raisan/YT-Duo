@@ -113,7 +113,7 @@ The live release-asset check exposed an incomplete system CA store on the local 
 
 ## 4.6.6 monitor layout and update maintenance
 
-Window sizing captures the current monitor before expanding Options or Terminal. Native monitor bounds and repositioning share a scoped physical DPI coordinate space; available height is converted to Tk units using the actual window rectangle ratio. This avoids failed point conversions outside the window, primary-screen assumptions and lost negative monitor origins. Minimized windows defer layout until restored. Button strokes are inset inside their Canvas even when pressed.
+Window sizing captures the current monitor before expanding Options or Terminal. Native monitor bounds and repositioning share a scoped physical DPI coordinate space; available height is converted to Tk units using the actual window rectangle ratio. This avoids failed point conversions outside the window, primary-screen assumptions and lost negative monitor origins. Minimized windows defer layout until restored. Button strokes are inset inside their Canvas even when pressed. The native rounded clipping region is rebuilt from physical window dimensions and includes DPI in its cache, preventing stale clipping after crossing between differently scaled displays.
 
 The update action is hidden at startup and for current/unavailable releases; only a confirmed newer stable version shows its green outline. Linux/macOS primary assets include their version and platform. Small unversioned aliases remain for older updaters. The new updater prefers versioned assets and accepts legacy manifests.
 

@@ -165,16 +165,23 @@ class WindowChrome:
         rect = wintypes.RECT()
         if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
             return
-        size = rect.right - rect.left, rect.bottom - rect.top
-        if min(size) < 30 or size == self._rounded_size:
-            return
-        region = self.gdi.CreateRoundRectRgn(0, 0, size[0]+1, size[1]+1, 24, 24)
-        if region:
-            # SetWindowRgn sends Configure; cache first to prevent recursion.
-            self._rounded_size = size
-            if not self.user.SetWindowRgn(self.hwnd, region, True):
-                self.gdi.DeleteObject(region)
-                self._rounded_size = None
+        logical_width = max(1, rect.right - rect.left)
+        with self._physical_coordinates():
+            if not self.user.GetWindowRect(self.hwnd, ctypes.byref(rect)):
+                return
+            size = rect.right - rect.left, rect.bottom - rect.top
+            diameter = max(1, round(24 * size[0] / logical_width))
+            key = size + (diameter,)
+            if min(size) < 30 or key == self._rounded_size:
+                return
+            region = self.gdi.CreateRoundRectRgn(0, 0, size[0]+1, size[1]+1, diameter, diameter)
+            if region:
+                # Include physical size/DPI in the cache; a logical size may
+                # stay constant while Windows scales the window on a new monitor.
+                self._rounded_size = key
+                if not self.user.SetWindowRgn(self.hwnd, region, True):
+                    self.gdi.DeleteObject(region)
+                    self._rounded_size = None
 
     def minimize(self):
         if self.hwnd:

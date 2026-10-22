@@ -63,6 +63,12 @@ class MonitorLayout(GuiTestCase):
         user.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
         user.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(desktop.MonitorInfo)]
         user.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)]
+        user.GetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        gdi = ctypes.WinDLL("gdi32", use_last_error=True)
+        gdi.CreateRectRgn.argtypes = [ctypes.c_int]*4
+        gdi.CreateRectRgn.restype = ctypes.c_void_p
+        gdi.GetRgnBox.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)]
+        gdi.DeleteObject.argtypes = [ctypes.c_void_p]
         user.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint]
         callback = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(wintypes.RECT), ctypes.c_ssize_t)
         monitors = []
@@ -93,8 +99,18 @@ class MonitorLayout(GuiTestCase):
                     context = user.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
                     try:
                         rect = wintypes.RECT(); user.GetWindowRect(hwnd, ctypes.byref(rect))
+                        region = gdi.CreateRectRgn(0,0,0,0)
+                        region_box = wintypes.RECT()
+                        try:
+                            self.assertNotEqual(user.GetWindowRgn(hwnd,region),0)
+                            gdi.GetRgnBox(region,ctypes.byref(region_box))
+                        finally: gdi.DeleteObject(region)
                     finally: user.SetThreadDpiAwarenessContext(context)
                     with self.subTest(scale=scale, monitor=bounds):
+                        self.assertGreaterEqual(region_box.right, rect.right-rect.left)
+                        self.assertGreaterEqual(region_box.bottom, rect.bottom-rect.top)
+                        self.assertLessEqual(region_box.right, rect.right-rect.left+1)
+                        self.assertLessEqual(region_box.bottom, rect.bottom-rect.top+1)
                         self.assertGreaterEqual(rect.left, bounds[0])
                         self.assertGreaterEqual(rect.top, bounds[1])
                         self.assertLessEqual(rect.right, bounds[2])
