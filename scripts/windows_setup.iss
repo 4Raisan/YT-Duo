@@ -1,5 +1,7 @@
 ; Build with Inno Setup 6. Installed state lives outside the application folder.
-#define AppVersion "4.6.6"
+#ifndef AppVersion
+#error "Build through scripts/build_release.py to supply AppVersion."
+#endif
 #ifndef PortableExePath
 #define PortableExePath "..\build\release-stage\windows\YT-Duo-" + AppVersion + "-Portable.exe"
 #endif

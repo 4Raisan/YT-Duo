@@ -233,6 +233,21 @@ exec "$PY" - "$@" <<'YTDUO_SOURCE'
         path.chmod(0o755)
 
 
+def windows_version_source():
+    """Generate EXE metadata from the same version used by all release names."""
+    value = version() + ".0"
+    return ('using System.Reflection;\n'
+            + '[assembly: AssemblyVersion("' + value + '")]\n'
+            + '[assembly: AssemblyFileVersion("' + value + '")]\n')
+
+
+def build_setup(output, compiler):
+    """Supply Inno's version explicitly so installer metadata cannot drift."""
+    subprocess.run([compiler, "/O" + str(output), "/DAppVersion=" + version(),
+                    "/DPortableExePath=" + str(Path(output) / ("YT-Duo-" + version() + "-Portable.exe")),
+                    str(ROOT / "scripts/windows_setup.iss")], cwd=ROOT, check=True)
+
+
 def build_windows(output):
     if sys.platform != "win32":
         raise RuntimeError("Build the Windows executable on Windows.")
@@ -241,6 +256,8 @@ def build_windows(output):
     compiler = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
     helper = ROOT / "build/YT-Duo-Shell.exe"
     helper.parent.mkdir(parents=True, exist_ok=True)
+    version_source = ROOT / "build/windows-version.cs"
+    version_source.write_text(windows_version_source(), encoding="utf-8")
     subprocess.run([str(compiler), "/nologo", "/target:exe", "/platform:x64",
                     "/out:" + str(helper), str(ROOT / "scripts/windows_shell.cs")], check=True)
     subprocess.run([
@@ -278,6 +295,7 @@ def build_windows(output):
         "/out:" + str(output / ("YT-Duo-" + version() + "-Portable.exe")),
         "/resource:" + str(compressed) + ",app.lzms",
         "/resource:" + str(helper) + ",shell.exe",
+        str(version_source),
         str(ROOT / "scripts/windows_launcher.cs"),
     ], cwd=ROOT, check=True)
 
@@ -351,9 +369,7 @@ def main():
         compiler = args.iscc or shutil.which("ISCC.exe")
         if not compiler:
             raise RuntimeError("Install Inno Setup and pass --iscc PATH or add ISCC.exe to PATH.")
-        subprocess.run([compiler, "/O" + str(windows),
-                        "/DPortableExePath=" + str(windows / ("YT-Duo-" + version() + "-Portable.exe")),
-                        str(ROOT / "scripts/windows_setup.iss")], cwd=ROOT, check=True)
+        build_setup(windows, compiler)
         artifacts.append(("windows/YT-Duo-" + version() + "-Setup.exe"))
     artifacts.append(build_source(staging))
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):

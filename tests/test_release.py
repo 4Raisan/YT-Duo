@@ -10,12 +10,28 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from scripts import build_release
 from ytduo import __version__
 
 
 class StandaloneRelease(unittest.TestCase):
+    def test_setup_receives_the_same_version_as_its_portable_payload(self):
+        with mock.patch.object(build_release, "version", return_value="9.8.7"), \
+             mock.patch.object(build_release.subprocess, "run") as compile_setup:
+            build_release.build_setup(Path("stage"), "ISCC.exe")
+        args = compile_setup.call_args.args[0]
+        self.assertIn("/DAppVersion=9.8.7", args)
+        self.assertTrue(any("YT-Duo-9.8.7-Portable.exe" in part for part in args))
+
+    def test_windows_exe_metadata_uses_the_application_version(self):
+        with mock.patch.object(build_release, "version", return_value="9.8.7"):
+            text = build_release.windows_version_source()
+        self.assertIn('AssemblyVersion("9.8.7.0")', text)
+        self.assertIn('AssemblyFileVersion("9.8.7.0")', text)
+        self.assertNotIn("[assembly: AssemblyVersion", (build_release.ROOT / "scripts/windows_launcher.cs").read_text())
+
     @unittest.skipUnless(sys.platform == "win32", "Windows compression and launcher")
     def test_native_payload_roundtrip_and_corrupt_input_in_real_launcher_decoder(self):
         with tempfile.TemporaryDirectory() as folder:
