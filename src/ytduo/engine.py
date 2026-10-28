@@ -700,6 +700,8 @@ def _archive_key(url, settings, selection=None):
         "mode": settings.mode, "max_height": settings.max_height,
         "audio_format": settings.audio_format, "audio_bitrate": settings.audio_bitrate}
     value = {"v": 2, "source": source, "media": settings.media_type, "variant": variant}
+    if settings.split_start is not None:
+        value["split"] = [settings.split_start, settings.split_end]
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
 
 
@@ -869,6 +871,8 @@ def run_item(url, index, total, settings, emit=None, should_stop=None,
 
     logger = EngineLogger(emit)
     info = probe(url, settings, logger)
+    from . import split
+    split.validate(settings.split_start, settings.split_end, info)
     title = info.get("title") or info.get("id") or f"item {index}"
     formats = info.get("formats") or []
     if should_stop and should_stop():
@@ -881,6 +885,10 @@ def run_item(url, index, total, settings, emit=None, should_stop=None,
         if not approved:
             emit("item_skipped", {"index": index, "url": url})
             return {"skipped": True}
+    if settings.split_start is not None:
+        report = split.run(info, index, settings, emit, should_stop)
+        _record_archive(url, settings, report["path"], selection)
+        return report
     if settings.media_type == "audio":
         report = run_music(url, index, title, formats, settings, emit, should_stop)
         _record_archive(url, settings, report["path"], selection)

@@ -114,6 +114,8 @@ def build_parser():
         "-V", "--version", action="version",
         version=f"YT-Duo {__version__}")
     parser.add_argument("--audio", action="store_true", help="download music / audio only")
+    parser.add_argument("--split-start", metavar="TIME", help="clip start: seconds, MM:SS or HH:MM:SS")
+    parser.add_argument("--split-end", metavar="TIME", help="clip end; only indexed replay media is fetched")
     parser.add_argument("--audio-format", choices=("original", "mp3"), default="original",
                         help="keep original audio quality or convert to MP3")
     parser.add_argument("--audio-bitrate", type=int, choices=(128, 192, 256, 320),
@@ -314,6 +316,11 @@ def _print_formats(url, settings, out):
 def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
     parser = build_parser()
     args = parser.parse_args(argv)
+    from .split import validate, SplitError
+    try:
+        validate(args.split_start, args.split_end)
+    except SplitError as exc:
+        parser.error(str(exc))
     if args.audio_bitrate and (not args.audio or args.audio_format != "mp3"):
         parser.error("--audio-bitrate requires --audio --audio-format mp3")
 
@@ -349,6 +356,8 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
         audio_format=args.audio_format,
         audio_bitrate=args.audio_bitrate,
         numbered=args.numbered,
+        split_start=args.split_start,
+        split_end=args.split_end,
     )
 
     renderer = ConsoleRenderer(quiet=args.quiet, stream=out)
@@ -405,6 +414,9 @@ def main(argv=None):  # noqa: C901 - a CLI entry point is linear by nature
                     raise engine.UnsupportedHostError(
                         f"no extractor for this host: {url}")
                 info = engine.probe(url, settings)
+                interval = validate(settings.split_start, settings.split_end, info)
+                if interval:
+                    out.write(f"       Split {interval[0]:g}s → {interval[1]:g}s; indexed ranges only\n")
                 if settings.media_type == "audio":
                     audio = selector.pick_music(info.get("formats") or [], mode)
                     out.write(f"  [{index}] {info.get('title', url)[:60]}\n")

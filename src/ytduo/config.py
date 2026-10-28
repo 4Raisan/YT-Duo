@@ -182,6 +182,8 @@ class Settings:
         audio_format="original",
         audio_bitrate=None,
         numbered=None,
+        split_start=None,
+        split_end=None,
     ):
         self.root = os.path.abspath(root or project_root())
         self.state_dir = os.path.join(self.root, ".ytduo")
@@ -216,6 +218,9 @@ class Settings:
         self.audio_format = audio_format
         self.audio_bitrate = int(audio_bitrate) if audio_bitrate is not None else None
         self.numbered = numbered
+        from .split import validate
+        interval = validate(split_start, split_end)
+        self.split_start, self.split_end = interval or (None, None)
         if self.audio_bitrate not in (None, 128, 192, 256, 320):
             raise ValueError("audio bitrate must be 128, 192, 256, 320 or best")
         if self.audio_bitrate and audio_format != "mp3":
@@ -289,6 +294,8 @@ class Settings:
             "audio_format": self.audio_format,
             "audio_bitrate": self.audio_bitrate,
             "numbered": self.numbered,
+            "split_start": self.split_start,
+            "split_end": self.split_end,
         }
         fields.update(changes)
         return Settings(**fields)
