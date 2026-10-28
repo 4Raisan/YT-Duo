@@ -4,6 +4,8 @@ Install with `python -m pip install -e .`. Run offline checks with `python -m un
 
 ## Structure
 
+Split regression tests are included in the unit suite. Run `python tests/split_smoke.py` with a full FFmpeg to generate synthetic indexed MP4/WebM files, serve them over local HTTP ranges, and test five-second cuts, byte savings, original audio / MP3, full decoding and every decoded video frame against the source. Both front and trailing WebM cues are covered. To exercise minimal tools, pass `--ffmpeg PATH --ffprobe PATH --generator FULL_FFMPEG_PATH`; the full generator also provides the verification decoders and frame-hash muxer. This is a local transport/media check; live YouTube extraction is separate. Split downloads ship starting with v4.7.0; older release binaries do not contain this feature.
+
 - `src/ytduo/`: application, shared engine, packaged PNG/ICO icons.
 - `scripts/`: release builder, Inno Setup recipe, diagram generator, fixture capture helper.
 - `tests/`: offline regressions, live smoke script, fixtures.

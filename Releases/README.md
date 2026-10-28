@@ -2,17 +2,21 @@
 
 | Platform | Portable / launcher | Installer |
 | --- | --- | --- |
-| Windows x64 | [YT-Duo-4.6.6-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Portable.exe) | [YT-Duo-4.6.6-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Setup.exe) |
-| Linux | [YT-Duo-4.6.6-Linux.sh](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-Linux.sh) | — |
-| macOS | [YT-Duo-4.6.6-macOS.command](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-macOS.command) | — |
+| Windows x64 | [YT-Duo-4.7.0-Portable.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/YT-Duo-4.7.0-Portable.exe) | [YT-Duo-4.7.0-Setup.exe](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/YT-Duo-4.7.0-Setup.exe) |
+| Linux | [YT-Duo-4.7.0-Linux.sh](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/YT-Duo-4.7.0-Linux.sh) | — |
+| macOS | [YT-Duo-4.7.0-macOS.command](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/YT-Duo-4.7.0-macOS.command) | — |
 
-Download links point to the v4.6.6 release assets. Local builds are written to the windows, linux, and macos subfolders here. Compiled downloads are ignored by Git and distributed through GitHub Releases.
+Download links point to the v4.7.0 release assets. Local builds are written to the windows, linux, and macos subfolders here. Compiled downloads are ignored by Git and distributed through GitHub Releases.
 
 Windows builds bundle Python/Tk. Setup installs for the current user with Start menu, optional desktop shortcut, and uninstall support. Portable defaults to `YT-Duo Downloads` beside the EXE. Setup defaults to `YT-Duo Downloads` in the Windows Downloads known folder; installed settings stay under `%LOCALAPPDATA%/YT-Duo/data/.ytduo` and survive uninstall. Videos use the chosen base folder and music its `Audio` child; Browse overrides the base. Both include Python/Tk, yt-dlp with its YouTube JS helpers, FFmpeg, FFprobe and Deno. No Python, FFmpeg, Deno, winget, or system PATH setup is needed for these Windows downloads. Windows packages use lossless LZMS compression and a purpose-built FFmpeg subset to reduce download size. First launch extracts the private runtime; later launches reuse it. Settings, history and temporary audio/video files are grouped in the private `.ytduo` folder; it is hidden on Windows. Existing recognized files migrate automatically. Executables remain unsigned.
 
-Unix launchers embed app source and require Python 3.10+, Tkinter, `yt-dlp[default]`, FFmpeg, FFprobe and Deno. Run `sh YT-Duo-4.6.6-Linux.sh` on Linux; use `chmod +x YT-Duo-4.6.6-macOS.command` then double-click on macOS, or run with `sh`. Set `YTDUO_PYTHON` to select Python. Native Unix app bundles/installers are not provided.
+Unix launchers embed app source and require Python 3.10+, Tkinter, `yt-dlp[default]`, FFmpeg, FFprobe and Deno. Run `sh YT-Duo-4.7.0-Linux.sh` on Linux; use `chmod +x YT-Duo-4.7.0-macOS.command` then double-click on macOS, or run with `sh`. Set `YTDUO_PYTHON` to select Python. Native Unix app bundles/installers are not provided.
 
-Verify files against [SHA256SUMS.txt](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
+Verify files against [SHA256SUMS.txt](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/SHA256SUMS.txt). See [build instructions](../docs/DEVELOPMENT.md).
+
+## Split downloads in 4.7.0
+
+Enable **Split** beside Video / Music and enter From / To times to save only an interval. The downloader fetches indexed ranges plus short decoding overlap; it never silently downloads the whole recording for a clip. Original codecs are preserved unless MP3 conversion is selected. Finished indexed videos and replays are supported; active live streams and unsupported indexes fail clearly. See [split usage and limits](../docs/USAGE.md#split-downloads).
 
 ## Dependencies
 
@@ -32,12 +36,12 @@ Install Deno using its [official instructions](https://docs.deno.com/runtime/get
 ```sh
 python3 -m venv ~/.local/share/ytduo-env
 ~/.local/share/ytduo-env/bin/python -m pip install -U "yt-dlp[default]"
-YTDUO_PYTHON=~/.local/share/ytduo-env/bin/python sh YT-Duo-4.6.6-Linux.sh
+YTDUO_PYTHON=~/.local/share/ytduo-env/bin/python sh YT-Duo-4.7.0-Linux.sh
 ```
 
 ### macOS
 
-Install Python 3.10+ with Tk from [python.org](https://www.python.org/downloads/macos/). If you use Homebrew, `brew install ffmpeg deno` supplies the media tools and JS runtime. Create the same virtual environment shown above, then launch `YT-Duo-4.6.6-macOS.command` instead of `YT-Duo.sh`. Native macOS engine/CLI and synthetic media paths are checked in CI; desktop GUI execution is not verified.
+Install Python 3.10+ with Tk from [python.org](https://www.python.org/downloads/macos/). If you use Homebrew, `brew install ffmpeg deno` supplies the media tools and JS runtime. Create the same virtual environment shown above, then launch `YT-Duo-4.7.0-macOS.command` instead of `YT-Duo.sh`. Native macOS engine/CLI and synthetic media paths are checked in CI; desktop GUI execution is not verified.
 
 ### Verify a source installation
 
@@ -50,7 +54,7 @@ python -m ytduo --check-dependencies
 
 The check reports versions and locations, runs FFmpeg/FFprobe/Deno, and returns failure for missing or broken dependencies. It does not download or install anything. FFprobe normally comes with FFmpeg. The Python package named `ffmpeg` is not a substitute for these executables.
 
-[Complete v4.6.6 source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.6.6/YT-Duo-4.6.6-source.zip) · [Third-party notices](../THIRD_PARTY_NOTICES.md). The ZIP contains source, project license, docs, tests, and build configuration—not preinstalled dependencies.
+[Complete v4.7.0 source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.0/YT-Duo-4.7.0-source.zip) · [Third-party notices](../THIRD_PARTY_NOTICES.md). The ZIP contains source, project license, docs, tests, and build configuration—not preinstalled dependencies.
 
 ## Updating
 

@@ -24,6 +24,25 @@ python -m ytduo --audio --audio-format mp3 --audio-bitrate 192 VIDEO_URL
 python -m ytduo --help
 ```
 
+## Split downloads
+
+Enable **Split** beside Video / Music, then enter **From** and **To** as `HH:MM:SS`, `MM:SS`, or seconds. Choose quality and format as usual. Split starts off each time the app opens. A queue applies the same range and selected settings to each item; each video's duration is checked separately.
+
+```sh
+python -m ytduo --split-start 01:37:59 --split-end 01:56:34 VIDEO_URL
+python -m ytduo --audio --split-start 60 --split-end 120 VIDEO_URL
+```
+
+yt-dlp resolves the selected streams. YT-Duo reads their MP4 SIDX / WebM cues, then requests only overlapping media ranges, with roughly 10 seconds of decoding pre-roll and 2 seconds after the end (rounded to fragment boundaries). FFmpeg trims those local fragments. Separate audio/video transfer is retained; video results are muxed into **MP4** for edit-list timing, keeping the selected codecs. Original music copies its audio codec; MP3 uses your selected encoding settings. Frame/packet boundaries can differ by a small fraction of a second.
+
+Finished, indexed videos and archived livestreams are supported. Active live/DVR, HLS-only selections, missing file sizes, nested indexes and unsupported codecs fail with an explanation. The app never falls back to fetching the whole recording for a split. Expired URLs fail safely; retry starts with fresh metadata. There is no quality downgrade to make a split succeed.
+
+Original AAC and Opus split audio uses an M4A/MP4 container, retaining its source codec; a player must support that codec. The video MP4 edit list hides decoder dependency frames at the boundaries without re-encoding them.
+
+Output names include the time interval. Duplicate checks distinguish different ranges, qualities, formats and Video / Music. Split temporary files are private and cleaned after success, failure or stop. `received_media_and_index_bytes` in the engine report counts successful response-body reads (including retries), not ISP-billed traffic or metadata extraction.
+
+Available in v4.7.0 portable, Setup, Unix launchers and source installs.
+
 ## Limits
 
 Resolution selection does not upscale. A cap can be exceeded if no candidate satisfies it. Cancellation is cooperative; cross-run partial-download resume is not guaranteed. `--numbered` forces queue prefixes; `--no-numbered` disables them, including for batches. Updates check GitHub automatically at startup. A green neon **Update to latest** button appears only when a newer stable release is detected; it downloads that release, verifies SHA-256 and restarts the app. Finish active downloads first. Failed checks report an error and check again at next launch; failed transfers keep the update button for retry. Settings and media stay in place. Source installs require a source upgrade; builds before 4.6.4 require one manual upgrade. **Star on GitHub** opens the repository.

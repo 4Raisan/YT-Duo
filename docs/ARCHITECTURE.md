@@ -69,6 +69,14 @@ The diagrams describe the implemented code. Branding uses the approved faceted r
 
 Download destinations are separate from the application data root: portable defaults to launcher-folder/YT-Duo Downloads; Setup resolves the Windows Downloads known folder and appends YT-Duo Downloads. Audio outputs use the Audio child folder of the selected destination. Archives remain in the base destination with per-media filenames. Saved custom destinations win; a destination-layout marker limits legacy-default migration to once. A failed destination creation offers a folder picker.
 
+## Selective split downloads
+
+GUI and CLI pass optional `split_start` / `split_end` through `Settings` to `engine.run_item`. Full downloads retain the existing pipeline. A split dispatches to `split.py` after fresh yt-dlp metadata and range-aware duplicate checks.
+
+`RangeReader` shares yt-dlp's HTTP session, reads bounded MP4 SIDX or WebM cues, and plans both tracks before any media transfer. Only selected fragments plus decoding overlap are fetched. Range lengths, server responses, index order and timestamp coverage are checked; unsupported inputs stop without a full-file fallback. FFmpeg receives local files only, retains codecs (except requested MP3 conversion), and FFprobe checks codec, duration and playback start before history is recorded. Split video uses MP4 edit lists. Job-owned temporary files are removed on completion or interruption.
+
+Cancelled local FFmpeg processes are killed and reaped. Existing cooperative pause/stop checks also run between range reads and local processing checks. Network timeouts still bound how long an in-flight HTTP operation can block. A failed/expired URL requires a fresh job; no signed media URL or external full-download process is persisted.
+
 ## Dependency resolution
 
 Windows portable/Setup bundles Python/Tk, yt-dlp and EJS helpers, FFmpeg/FFprobe with their required DLLs, and Deno. Frozen runs prefer the tools inside their own runtime bundle before system PATH; explicit FFmpeg/FFprobe settings still take precedence. Deno is passed to yt-dlp by its absolute bundled path. No dependency installation happens during GUI startup. Source and Unix launchers use installed tools; `--check-dependencies` reports versions and detects missing or broken executables.
