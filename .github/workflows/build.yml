@@ -52,6 +52,8 @@ jobs:
             $process = Start-Process -FilePath (Resolve-Path "Releases/windows/YT-Duo-$version-Portable.exe") -WindowStyle Hidden -PassThru -Wait
             if ($process.ExitCode -ne 0) { throw 'Packaged dependency check failed' }
             Get-Content $report
+            $data = Get-Content $report -Raw | ConvertFrom-Json
+            if ($data.split_downloads.interval[0] -ne 60 -or $data.split_downloads.interval[1] -ne 90) { throw 'Packaged split module missing or broken' }
           } finally {
             $env:PATH = $savedPath
             Remove-Item Env:YTDUO_SELF_TEST_REPORT -ErrorAction SilentlyContinue

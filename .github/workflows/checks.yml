@@ -40,5 +40,7 @@ jobs:
         run: command -v ffmpeg || brew install ffmpeg
       - if: runner.os != 'Windows'
         run: python tests/media_smoke.py
+      - if: runner.os != 'Windows'
+        run: python tests/split_smoke.py
       - run: python -m ytduo --version
       - run: python -m compileall -q src scripts

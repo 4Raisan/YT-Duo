@@ -93,6 +93,8 @@ class MonitorLayout(GuiTestCase):
                 finally: user.SetThreadDpiAwarenessContext(context)
                 self.tk.update()
                 self.app.apply_font_scale(scale)
+                self.app.split_var.set(True)
+                self.app._toggle_split()
                 for action in (lambda: self.app.toggle_settings(True),
                                lambda: self.app._on_update_result({"status": "available", "latest": "99.0.0"}),
                                lambda: self.app.toggle_log(True),

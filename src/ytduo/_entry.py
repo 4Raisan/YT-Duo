@@ -51,9 +51,13 @@ def main():
             from ytduo import __version__
             from ytduo.dependencies import report
             from ytduo.updates import tls_context
+            from ytduo.split import RangeReader, validate
             rows = report()
             context = tls_context()  # Also verifies the frozen CA bundle is present.
+            interval = validate("01:00", "01:30", {"duration": 120})
             Path(diagnostic).write_text(json.dumps({"version": __version__, "dependencies": rows,
+                                                   "split_downloads": {"interval": interval,
+                                                                       "max_range_bytes": RangeReader.MAX_READ},
                                                    "update_tls": {"check_hostname": context.check_hostname,
                                                                   "trusted_roots": len(context.get_ca_certs())}},
                                                    indent=2), encoding="utf-8")
