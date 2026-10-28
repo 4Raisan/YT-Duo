@@ -161,6 +161,7 @@ def mp4_index(reader):
             version = index[h]
             if version not in (0, 1):
                 raise SplitError("Unsupported SIDX version.")
+            reader.mp4_track_id = struct.unpack_from(">I", index, h + 4)[0]
             pos = h + 8
             scale = struct.unpack_from(">I", index, pos)[0]
             pos += 4
@@ -185,6 +186,108 @@ def mp4_index(reader):
             break
         offset += size
     raise SplitError("Selected MP4 has no supported SIDX index. Full transfer refused.")
+
+
+def mp4_boxes(data):
+    """Yield bounded MP4 box payloads; used for timing metadata, never mdat."""
+    pos = 0
+    while pos < len(data):
+        if pos + 8 > len(data):
+            raise SplitError("Truncated MP4 timing box.")
+        size, kind = struct.unpack_from(">I4s", data, pos)
+        header = 8
+        if size == 1:
+            if pos + 16 > len(data):
+                raise SplitError("Truncated extended MP4 timing box.")
+            size, header = struct.unpack_from(">Q", data, pos + 8)[0], 16
+        if size < header or pos + size > len(data):
+            raise SplitError("Invalid MP4 timing box size.")
+        yield kind, data[pos + header:pos + size]
+        pos += size
+
+
+def mp4_presentation_origin(reader, init, rows):
+    """Read only the first moof metadata to establish the presentation origin.
+
+    FFmpeg 6 can write a SIDX origin at decode time zero while the first video
+    frame presents later because of B-frame reordering. Newer writers include
+    that offset in SIDX. The first trun composition offset disambiguates them;
+    no first-fragment media payload is downloaded for this check.
+    """
+    moov = dict(mp4_boxes(init))[b"moov"]
+    movie = dict(mp4_boxes(moov))
+    mvhd = movie[b"mvhd"]
+    movie_scale = struct.unpack_from(">I", mvhd, 20 if mvhd[0] else 12)[0]
+    scale, shift = None, 0
+    for kind, payload in mp4_boxes(moov):
+        if kind != b"trak":
+            continue
+        track = dict(mp4_boxes(payload))
+        tkhd = track[b"tkhd"]
+        track_id = struct.unpack_from(">I", tkhd, 20 if tkhd[0] else 12)[0]
+        if track_id != reader.mp4_track_id:
+            continue
+        mdhd = dict(mp4_boxes(track[b"mdia"]))[b"mdhd"]
+        scale = struct.unpack_from(">I", mdhd, 20 if mdhd[0] else 12)[0]
+        if not scale or not movie_scale:
+            raise SplitError("Invalid MP4 presentation timescale.")
+        if b"edts" in track:
+            elst = dict(mp4_boxes(track[b"edts"]))[b"elst"]
+            if elst[0] not in (0, 1):
+                raise SplitError("Unsupported source edit-list version.")
+            count, pos = struct.unpack_from(">I", elst, 4)[0], 8
+            if not 1 <= count <= 2:
+                raise SplitError("Complex source edit lists are unsupported.")
+            for _ in range(count):
+                layout = ">Qqhh" if elst[0] else ">Iihh"
+                length, media_time, integer, fraction = struct.unpack_from(layout, elst, pos)
+                pos += struct.calcsize(layout)
+                if (integer, fraction) != (1, 0):
+                    raise SplitError("Nonstandard source playback rate.")
+                if media_time == -1:
+                    shift += length / movie_scale
+                else:
+                    shift -= media_time / scale
+                    break
+        break
+    if scale is None:
+        raise SplitError("Source video track timing was not found.")
+    offset = rows[0][2]
+    for _ in range(8):
+        header = reader.block(offset, 16)
+        size, kind = struct.unpack_from(">I4s", header)
+        h = 8
+        if size == 1:
+            size, h = struct.unpack_from(">Q", header, 8)[0], 16
+        if size < h or offset + size - 1 > rows[0][3]:
+            raise SplitError("Invalid first-fragment timing metadata.")
+        if kind == b"mdat":
+            break
+        if kind == b"moof":
+            moof = reader.block(offset, size)[h:]
+            for child, payload in mp4_boxes(moof):
+                if child != b"traf":
+                    continue
+                children = list(mp4_boxes(payload))
+                if sum(k == b"trun" for k, _ in children) != 1:
+                    raise SplitError("Multiple runs in the first fragment are unsupported.")
+                fields = dict(children)
+                if struct.unpack_from(">I", fields[b"tfhd"], 4)[0] != reader.mp4_track_id:
+                    continue
+                tfdt, trun = fields[b"tfdt"], fields[b"trun"]
+                if tfdt[0] not in (0, 1) or trun[0] not in (0, 1):
+                    raise SplitError("Unsupported fragment timing version.")
+                decode_time = struct.unpack_from(">Q" if tfdt[0] else ">I", tfdt, 4)[0]
+                flags = int.from_bytes(trun[1:4], "big")
+                if not struct.unpack_from(">I", trun, 4)[0]:
+                    raise SplitError("Empty first video fragment.")
+                pos = 8 + (4 if flags & 1 else 0) + (4 if flags & 4 else 0)
+                pos += 4 * sum(bool(flags & mask) for mask in (0x100, 0x200, 0x400))
+                composition = struct.unpack_from(">i" if trun[0] else ">I", trun, pos)[0] if flags & 0x800 else 0
+                return (decode_time + composition) / scale + shift
+            break
+        offset += size
+    raise SplitError("First video fragment has no supported presentation timing.")
 
 
 def vint(data, pos=0, identity=False):
@@ -273,8 +376,9 @@ def plan(reader, start, end, duration):
         ext = reader.fmt.get("ext")
         if ext in ("mp4", "m4a"):
             init, rows = mp4_index(reader)
-            reader.timeline_origin = rows[0][0]
-            rows = [(a - reader.timeline_origin, b - reader.timeline_origin, first, last)
+            index_origin = rows[0][0]
+            reader.timeline_origin = mp4_presentation_origin(reader, init, rows) if reader.fmt.get("vcodec") not in (None, "", "none") else index_origin
+            rows = [(a - index_origin, b - index_origin, first, last)
                     for a, b, first, last in rows]
         elif ext == "webm":
             init, rows = webm_index(reader, duration)

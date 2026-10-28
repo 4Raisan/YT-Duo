@@ -39,6 +39,8 @@ Finished, indexed videos and archived livestreams are supported. Active live/DVR
 
 Original AAC and Opus split audio uses an M4A/MP4 container, retaining its source codec; a player must support that codec. The video MP4 edit list hides decoder dependency frames at the boundaries without re-encoding them.
 
+For reordered MP4 video, a small timing header from the first fragment is also read to distinguish decode time from presentation time. That probe reads metadata, not the first fragment's media payload.
+
 Output names include the time interval. Duplicate checks distinguish different ranges, qualities, formats and Video / Music. Split temporary files are private and cleaned after success, failure or stop. `received_media_and_index_bytes` in the engine report counts successful response-body reads (including retries), not ISP-billed traffic or metadata extraction.
 
 Available in v4.7.0 portable, Setup, Unix launchers and source installs.

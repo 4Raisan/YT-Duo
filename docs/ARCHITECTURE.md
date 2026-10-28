@@ -77,6 +77,8 @@ GUI and CLI pass optional `split_start` / `split_end` through `Settings` to `eng
 
 Cancelled local FFmpeg processes are killed and reaped. Existing cooperative pause/stop checks also run between range reads and local processing checks. Network timeouts still bound how long an in-flight HTTP operation can block. A failed/expired URL requires a fresh job; no signed media URL or external full-download process is persisted.
 
+MP4 presentation timing is read from the first fragment's `tfdt` / `trun` headers, with source edit-list offsets applied. Only the small `moof` metadata is fetched for this probe. This covers older FFmpeg writers whose SIDX origin represents decode time before the first reordered video frame is presented.
+
 ## Dependency resolution
 
 Windows portable/Setup bundles Python/Tk, yt-dlp and EJS helpers, FFmpeg/FFprobe with their required DLLs, and Deno. Frozen runs prefer the tools inside their own runtime bundle before system PATH; explicit FFmpeg/FFprobe settings still take precedence. Deno is passed to yt-dlp by its absolute bundled path. No dependency installation happens during GUI startup. Source and Unix launchers use installed tools; `--check-dependencies` reports versions and detects missing or broken executables.

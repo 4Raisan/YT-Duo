@@ -67,6 +67,39 @@ class Timing(unittest.TestCase):
 
 
 class Indexes(unittest.TestCase):
+    def presentation_fixture(self, composition=200, version=0, edit=False, double_run=False):
+        def box(kind, data):
+            return struct.pack(">I4s", len(data) + 8, kind) + data
+        mvhd, tkhd, mdhd = bytearray(24), bytearray(28), bytearray(24)
+        struct.pack_into(">I", mvhd, 12, 1000)
+        struct.pack_into(">I", tkhd, 12, 1)
+        struct.pack_into(">I", mdhd, 12, 1000)
+        edits = box(b"edts", box(b"elst", struct.pack(">IIIihh", 0, 1, 2000, 200, 1, 0))) if edit else b""
+        init = box(b"moov", box(b"mvhd", mvhd) + box(b"trak", box(b"tkhd", tkhd) + box(b"mdia", box(b"mdhd", mdhd)) + edits))
+        trun = box(b"trun", struct.pack(">IIiI", (version << 24) | 0x805, 1, 0, 0)
+                   + struct.pack(">i" if version else ">I", composition))
+        moof = box(b"moof", box(b"traf", box(b"tfhd", struct.pack(">II", 0, 1))
+                   + box(b"tfdt", struct.pack(">II", 0, 0)) + trun + (trun if double_run else b"")))
+        reader = MemoryReader(moof + box(b"mdat", b"media-must-not-be-fetched"))
+        reader.mp4_track_id = 1
+        return reader, init, [(0, 2, 0, reader.size - 1)], len(moof)
+
+    def test_presentation_offset_reads_only_fragment_metadata(self):
+        reader, init, rows, moof_size = self.presentation_fixture()
+        self.assertAlmostEqual(split.mp4_presentation_origin(reader, init, rows), .2)
+        self.assertLess(max(last for _, last in reader.reads), moof_size)
+
+    def test_presentation_offset_respects_source_edit_list(self):
+        reader, init, rows, _ = self.presentation_fixture(edit=True)
+        self.assertAlmostEqual(split.mp4_presentation_origin(reader, init, rows), 0)
+
+    def test_signed_composition_offset_and_unsupported_multiple_runs(self):
+        reader, init, rows, _ = self.presentation_fixture(composition=-20, version=1)
+        self.assertAlmostEqual(split.mp4_presentation_origin(reader, init, rows), -.02)
+        reader, init, rows, _ = self.presentation_fixture(double_run=True)
+        with self.assertRaisesRegex(split.SplitError, "Multiple runs"):
+            split.mp4_presentation_origin(reader, init, rows)
+
     def test_edit_list_duration_cap_preserves_encoded_bytes(self):
         def box(kind, payload):
             return struct.pack(">I4s", len(payload) + 8, kind) + payload
