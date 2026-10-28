@@ -5,7 +5,6 @@ can point at the minimal bundled tools; --generator supplies the full FFmpeg.
 """
 import argparse
 import json
-import math
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import re
@@ -102,15 +101,18 @@ def main():
                 errors = subprocess.run([args.generator, "-v", "error", "-i", output, "-f", "null", "-"], capture_output=True, text=True)
                 assert errors.returncode == 0 and not errors.stderr.strip(), errors.stderr
                 if video_name:
-                    def frames(path, at, duration=None):
-                        # Decode then select, avoiding the source demuxer's own
-                        # random-seek approximation when validating our cut.
-                        text = command(args.generator, "-v", "error", "-i", path, "-ss", str(at),
-                            *(["-t", str(duration)] if duration else []), "-an", "-f", "framemd5", "-")
+                    def frames(path, start, end):
+                        # Compare actual presentation times, not list positions:
+                        # FFmpeg versions differ in default frame duplication
+                        # around the source MP4's nonzero start timestamp.
+                        select = f"select=gte(t\\,{start})*lt(t\\,{end})"
+                        text = command(args.generator, "-v", "error", "-copyts", "-i", path,
+                            "-vf", select, "-fps_mode", "passthrough", "-an", "-f", "framemd5", "-")
                         return [line.split(",")[-1].strip() for line in text.splitlines() if line and not line.startswith("#")]
-                    source_frames = frames(str(root / video_name), 0)
-                    expected_frames = source_frames[math.ceil(53.25 * 10):math.ceil(58.25 * 10)]
-                    actual_frames = frames(output, 0)
+                    source_probe = json.loads(command(args.ffprobe, "-v", "error", "-show_streams", "-of", "json", str(root / video_name)))
+                    origin = float(source_probe["streams"][0].get("start_time") or 0)
+                    expected_frames = frames(str(root / video_name), origin + 53.25, origin + 58.25)
+                    actual_frames = frames(output, 0, 5)
                     assert actual_frames == expected_frames, (video_name, len(actual_frames), len(expected_frames))
                 print(f"PASS {video_name or 'audio only'} + {audio_name} / {encoding}: {body_bytes}/{full_bytes} bytes, 5 s, full decode", flush=True)
             assert not list((root / ".ytduo/work").glob("split-*")), "Temporary split files leaked"
