@@ -180,6 +180,7 @@ class YtDuoApp:
         self._build_header()
         self._build_input()
         self._build_quality()
+        self._build_split()
         self._build_destination()
         self._build_progress()
         self._build_advanced()
@@ -205,6 +206,7 @@ class YtDuoApp:
             self.format_row,
             self.music_row,
             self.audio_quality_row,
+            self.split_row,
             self.destination_row,
             self.progress_frame,
             self.advanced,
@@ -228,6 +230,7 @@ class YtDuoApp:
             self.format_row: self.media_var.get() == "video",
             self.music_row: self.media_var.get() == "audio",
             self.audio_quality_row: self.media_var.get() == "audio",
+            self.split_row: self.split_var.get(),
             self.footer_row: True,
             self.destination_row: True,
             self.progress_frame: getattr(self, "_progress_visible", False),
@@ -248,7 +251,7 @@ class YtDuoApp:
             widget.pack(fill="x", padx=theme.PAD, pady=(8, 0))
         elif widget is self.input_row:
             widget.pack(fill="x", padx=theme.PAD, pady=(8 if compact else 16, 0))
-        elif widget in (self.media_row, self.music_row, self.audio_quality_row):
+        elif widget in (self.media_row, self.music_row, self.audio_quality_row, self.split_row):
             widget.pack(fill="x", padx=theme.PAD, pady=(6 if compact else 10, 0))
         elif widget is self.footer_row:
             widget.pack(fill="x", padx=theme.PAD, pady=(8, 8) if compact else (14, 14))
@@ -722,6 +725,43 @@ class YtDuoApp:
         widgets._rounded_rect(c, 13, h/2-8, 19, h/2+8, 3,
                               fill=color, outline="", tags="indicator")
 
+    def _build_split(self):
+        self.split_row = tk.Frame(self.shell, bg=self.palette["bg"])
+        # A new session always starts in normal full-download mode.
+        self.split_var = tk.BooleanVar(value=False)
+        self.split_start_var = tk.StringVar(value="00:00:00")
+        self.split_end_var = tk.StringVar(value="00:05:00")
+        self.split_check = tk.Checkbutton(self.media_row, text="Split",
+            variable=self.split_var, command=self._toggle_split,
+            bg=self.palette["bg"], fg=self.palette["text"],
+            activebackground=self.palette["bg"], activeforeground=self.palette["text"],
+            selectcolor=self.palette["surface_alt"], font=self.fonts["small"],
+            bd=0, highlightthickness=0, cursor="hand2")
+        self.split_check.pack(side="left", padx=(12, 0))
+        self.split_fields = tk.Frame(self.split_row, bg=self.palette["bg"])
+        self.split_entries = []
+        for label, variable in (("From", self.split_start_var), ("To", self.split_end_var)):
+            self._label(self.split_fields, label, "small", "text_faint").pack(side="left", padx=(4, 6))
+            entry = tk.Entry(self.split_fields, textvariable=variable, width=11,
+                font=self.fonts["small"], bg=self.palette["surface_alt"],
+                fg=self.palette["text"], insertbackground=self.palette["text"],
+                relief="flat", highlightthickness=1,
+                highlightbackground=self.palette["border"], highlightcolor=self.palette["accent"])
+            entry.pack(side="left", ipady=4, padx=(0, 8))
+            self.split_entries.append(entry)
+        self.split_hint = self._label(self.split_fields, "HH:MM:SS · replay only", "small", "text_faint")
+        self.split_hint.configure(wraplength=220, justify="left")
+        self.split_hint.pack(side="left")
+
+    def _toggle_split(self):
+        self.split_hint.configure(text="HH:MM:SS · replay only", fg=self.palette["text_faint"])
+        if self.split_var.get():
+            self.split_fields.pack(side="left")
+        else:
+            self.split_fields.pack_forget()
+        self._repack()
+        self._autosize()
+
     def _build_quality(self):
         self.media_var = tk.StringVar(value="video")
         self.audio_format_var = tk.StringVar(value=self.saved.get("audio_format", "original"))
@@ -1016,8 +1056,11 @@ class YtDuoApp:
                             (self.log, "mono"), (self.status_label, "body_bold"),
                             (self.archive_check, "small"), (self.cookies_combo, "small"),
                             (self.auto_download_check, "small"),
+                            (self.split_check, "small"),
                             (self.scale_menu, "small")):
             widget.configure(font=self.fonts[key])
+        for entry in self.split_entries:
+            entry.configure(font=self.fonts["small"])
         for check in self.preference_checks:
             check.configure(font=self.fonts["small"])
         for menu in (self.cookies_combo["menu"], self.scale_menu["menu"]):
@@ -1155,6 +1198,11 @@ class YtDuoApp:
         self.auto_download_check.configure(bg=p["bg"], fg=p["text"],
             activebackground=p["bg"], activeforeground=p["text"],
             selectcolor=p["surface_alt"])
+        self.split_check.configure(bg=p["bg"], fg=p["text"], activebackground=p["bg"],
+            activeforeground=p["text"], selectcolor=p["surface_alt"])
+        for entry in self.split_entries:
+            entry.configure(bg=p["surface_alt"], fg=p["text"], insertbackground=p["text"],
+                highlightbackground=p["border"], highlightcolor=p["accent"])
         self.cookies_combo.configure(
             bg=p["surface_alt"], fg=p["text"],
             activebackground=p["surface_hi"], activeforeground=p["text"])
@@ -1495,7 +1543,7 @@ class YtDuoApp:
 
     # ── run control ──────────────────────────────────────────────────
 
-    def _make_settings(self):
+    def _make_settings(self, include_split=False):
         return Settings(
             mode="best" if self.media_var.get() == "audio" else self.mode_var.get(),
             output_dir=self.output_var.get(),
@@ -1505,6 +1553,8 @@ class YtDuoApp:
             media_type=self.media_var.get(),
             audio_format=self.audio_format_var.get(),
             audio_bitrate=self.audio_bitrate_var.get() or None,
+            split_start=self.split_start_var.get() if include_split and self.split_var.get() else None,
+            split_end=self.split_end_var.get() if include_split and self.split_var.get() else None,
         )
 
     def _set_running(self, running):
@@ -1598,10 +1648,20 @@ class YtDuoApp:
             return False
         if self.worker and self.worker.is_alive():
             return
-        settings = self._make_settings().replace(numbered=True if queued else None)
+        from .split import SplitError
+        self.split_hint.configure(text="HH:MM:SS · replay only", fg=self.palette["text_faint"])
+        try:
+            settings = self._make_settings(include_split=True).replace(numbered=True if queued else None)
+            # The worker validates each queued URL against fresh metadata.
+            # The entry preview may describe a different, shorter video.
+        except SplitError as exc:
+            self._set_link_status(str(exc), "danger")
+            self.split_hint.configure(text=str(exc), fg=self.palette["danger"])
+            self._autosize()
+            return False
         if not self._preflight(settings):
             return
-        settings = self._make_settings().replace(numbered=True if queued else None)
+        settings = settings.replace(output_dir=self.output_var.get())
         self._save_settings()
 
         self.bridge.reset()
