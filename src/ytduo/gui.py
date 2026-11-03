@@ -675,6 +675,10 @@ class YtDuoApp:
         self.url_entry.bind("<KP_Enter>", lambda _e: self.download_single())
         self.url_entry.bind("<FocusIn>", lambda _e: self._paint_input(True))
         self.url_entry.bind("<FocusOut>", lambda _e: self._paint_input(False))
+        self.clear_link_button = tk.Button(self.input_canvas, text="×", command=self._clear_link,
+            bd=0, relief="flat", cursor="hand2", font=self.fonts["entry"],
+            bg=self.palette["surface_alt"], fg=self.palette["text"])
+        self._clear_window = self.input_canvas.create_window(0, 22, window=self.clear_link_button, anchor="center", width=26, height=28)
         self._input_focused = False
 
         self.single_button = widgets.Button(
@@ -691,6 +695,10 @@ class YtDuoApp:
         # Status is represented by the leading indicator; this label retains
         # descriptive state for diagnostics without a duplicate row below.
 
+    def _clear_link(self):
+        self.url_var.set("")
+        self.url_entry.focus_set()
+
     def _sync_placeholder(self):
         self.input_canvas.itemconfigure(self._placeholder_window,
             state="hidden" if self.url_var.get() else "normal")
@@ -700,8 +708,9 @@ class YtDuoApp:
         h = int(self.input_canvas.cget("height"))
         for item in (self._entry_window, self._placeholder_window):
             self.input_canvas.coords(item, 34, h / 2)
-            self.input_canvas.itemconfigure(item, width=max(40, w - 50),
+            self.input_canvas.itemconfigure(item, width=max(40, w - 78),
                 height=max(26, tkfont.Font(root=self.root, font=self.fonts["entry"]).metrics("linespace") + 2))
+        self.input_canvas.coords(self._clear_window, w - 20, h / 2)
         self._paint_input(self._input_focused)
 
     def _paint_input(self, focused=None):
@@ -740,18 +749,60 @@ class YtDuoApp:
         self.split_check.pack(side="left", padx=(12, 0))
         self.split_fields = tk.Frame(self.split_row, bg=self.palette["bg"])
         self.split_entries = []
+        self.split_step_buttons = []
+        self.split_start_var.trace_add("write", self._sync_split_end)
         for label, variable in (("From", self.split_start_var), ("To", self.split_end_var)):
             self._label(self.split_fields, label, "small", "text_faint").pack(side="left", padx=(4, 6))
-            entry = tk.Entry(self.split_fields, textvariable=variable, width=11,
+            box = tk.Frame(self.split_fields, bg=self.palette["surface_alt"],
+                highlightthickness=1, highlightbackground=self.palette["border"])
+            box.pack(side="left", padx=(0, 8))
+            entry = tk.Entry(box, textvariable=variable, width=9,
                 font=self.fonts["small"], bg=self.palette["surface_alt"],
                 fg=self.palette["text"], insertbackground=self.palette["text"],
-                relief="flat", highlightthickness=1,
-                highlightbackground=self.palette["border"], highlightcolor=self.palette["accent"])
-            entry.pack(side="left", ipady=4, padx=(0, 8))
+                relief="flat", highlightthickness=0)
+            entry.pack(side="left", ipady=4, padx=(4, 0))
+            controls = tk.Frame(box, bg=self.palette["surface_alt"], width=18, height=28)
+            controls.pack(side="left")
+            controls.pack_propagate(False)
+            for symbol, delta in (("▴", 1), ("▾", -1)):
+                button = tk.Button(controls, text=symbol, width=2, bd=0,
+                    padx=0, pady=0, bg=self.palette["surface_alt"],
+                    fg=self.palette["text"], activebackground=self.palette["border"],
+                    command=lambda e=entry, d=delta: self._adjust_split_time(e, d))
+                button.pack(fill="both", expand=True)
+                self.split_step_buttons.append(button)
+            entry.bind("<Up>", lambda event, e=entry: self._adjust_split_time(e, 1))
+            entry.bind("<Down>", lambda event, e=entry: self._adjust_split_time(e, -1))
+            entry.bind("<MouseWheel>", lambda event, e=entry: self._adjust_split_time(e, 1 if event.delta > 0 else -1))
+            entry.bind("<Button-4>", lambda event, e=entry: self._adjust_split_time(e, 1))
+            entry.bind("<Button-5>", lambda event, e=entry: self._adjust_split_time(e, -1))
             self.split_entries.append(entry)
         self.split_hint = self._label(self.split_fields, "HH:MM:SS · replay only", "small", "text_faint")
         self.split_hint.configure(wraplength=220, justify="left")
         self.split_hint.pack(side="left")
+
+    def _sync_split_end(self, *_):
+        self.split_end_var.set(self.split_start_var.get())
+
+    def _adjust_split_time(self, entry, delta):
+        from .split import timestamp
+        try:
+            value = int(timestamp(entry.get()))
+        except (ValueError, TypeError):
+            return "break"
+        position = entry.index("insert")
+        parts = entry.get().split(":")
+        if len(parts) == 3:
+            step = 3600 if position <= 2 else 60 if position <= 5 else 1
+        elif len(parts) == 2:
+            step = 60 if position <= 2 else 1
+        else:
+            step = 1
+        value = max(0, value + delta * step)
+        entry.delete(0, "end")
+        entry.insert(0, f"{value // 3600:02d}:{value // 60 % 60:02d}:{value % 60:02d}")
+        entry.icursor(min(position, len(entry.get())))
+        return "break"
 
     def _toggle_split(self):
         self.split_hint.configure(text="HH:MM:SS · replay only", fg=self.palette["text_faint"])
@@ -1155,6 +1206,11 @@ class YtDuoApp:
                 walk(c)
 
         walk(self.shell)
+        self.clear_link_button.configure(bg=p["surface_alt"], fg=p["text"],
+                                         activebackground=p["border"], activeforeground=p["text"])
+        for button in self.split_step_buttons:
+            button.configure(bg=p["surface_alt"], fg=p["text"],
+                             activebackground=p["border"], activeforeground=p["text"])
 
         # Widgets living inside the options card sit on the surface colour,
         # not the window background.
@@ -1633,7 +1689,7 @@ class YtDuoApp:
             self._refresh_queue_ui()
             self.start_queue()
             return
-        if self._start([urls[0]]):
+        if self._start([urls[0]]) and not self.split_var.get():
             self.url_var.set("")
 
     def start_queue(self):
