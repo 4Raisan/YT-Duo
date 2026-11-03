@@ -782,7 +782,15 @@ class YtDuoApp:
         self.split_hint.pack(side="left")
 
     def _sync_split_end(self, *_):
-        self.split_end_var.set(self.split_start_var.get())
+        from .split import timestamp
+        try:
+            start = timestamp(self.split_start_var.get())
+            end = timestamp(self.split_end_var.get())
+        except ValueError:
+            # Incomplete text while typing must not replace either field.
+            return
+        if end == 0 or end < start:
+            self.split_end_var.set(self.split_start_var.get())
 
     def _adjust_split_time(self, entry, delta):
         from .split import timestamp

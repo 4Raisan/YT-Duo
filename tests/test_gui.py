@@ -76,9 +76,14 @@ def fake_report(tmpdir, name="video.mp4"):
 class GuiTestCase(unittest.TestCase):
     def test_split_time_sync_and_link_controls(self):
         app = self.app
+        app.split_end_var.set("00:00:00")
         app.split_start_var.set("00:05:00")
         self.assertEqual(app.split_end_var.get(), "00:05:00")
         app.split_end_var.set("00:10:00")
+        app.split_start_var.set("00:06:00")
+        self.assertEqual(app.split_end_var.get(), "00:10:00")
+        app.split_start_var.set("00:")
+        self.assertEqual(app.split_end_var.get(), "00:10:00")
         app.split_start_var.set("00:24:00")
         self.assertEqual(app.split_end_var.get(), "00:24:00")
         entry = app.split_entries[1]
