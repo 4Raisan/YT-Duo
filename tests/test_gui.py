@@ -74,6 +74,28 @@ def fake_report(tmpdir, name="video.mp4"):
 
 @unittest.skipUnless(HAVE_TK, "tkinter unavailable")
 class GuiTestCase(unittest.TestCase):
+    def test_split_time_sync_and_link_controls(self):
+        app = self.app
+        app.split_start_var.set("00:05:00")
+        self.assertEqual(app.split_end_var.get(), "00:05:00")
+        app.split_end_var.set("00:10:00")
+        app.split_start_var.set("00:24:00")
+        self.assertEqual(app.split_end_var.get(), "00:24:00")
+        entry = app.split_entries[1]
+        entry.icursor(4)
+        app._adjust_split_time(entry, 1)
+        self.assertEqual(app.split_end_var.get(), "00:25:00")
+        self.assertIs(app.clear_link_button.master, app.input_canvas)
+        self.assertIs(app.split_step_buttons[0].master.master, app.split_entries[0].master)
+        app.split_var.set(True)
+        link = "https://www.youtube.com/watch?v=abcdefghijk"
+        app.url_var.set(link)
+        with mock.patch.object(app, "_start", return_value=True):
+            app.download_single()
+        self.assertEqual(app.url_var.get(), link)
+        app._clear_link()
+        self.assertEqual(app.url_var.get(), "")
+
     def setUp(self):
         self.root = make_workspace()
         self.home_patch = mock.patch.dict(os.environ, {"YTDUO_HOME": self.root})
