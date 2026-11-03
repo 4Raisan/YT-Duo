@@ -51,4 +51,4 @@ Resolution selection does not upscale. A cap can be exceeded if no candidate sat
 
 YT-Duo is independent of YouTube/Google. Download only content you have permission to save.
 
-The end time copies the start whenever the start changes; you can then adjust the end independently. Use the small arrows, keyboard arrows, or mouse wheel over a time field to adjust the hours, minutes, or seconds at the cursor. Split downloads retain the link for another clip; use **×** inside the link field to clear it.
+The end time copies the start when it is zero or earlier than the new start; a later end time is kept. Use the small arrows, keyboard arrows, or mouse wheel over a time field to adjust the hours, minutes, or seconds at the cursor. Split downloads retain the link for another clip; use **×** inside the link field to clear it.
