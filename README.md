@@ -25,6 +25,8 @@ A desktop app and command-line tool for downloading **videos or music**, powered
 
 Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
 
+For newer downloads, see the [latest release](https://github.com/4Raisan/YT-Duo/releases/latest).
+
 ## Quick start
 
 1. Open YT-Duo and paste a link. Wait for the quality scan.
