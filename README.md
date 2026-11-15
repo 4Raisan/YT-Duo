@@ -1,9 +1,13 @@
 <p align="center">
-  <img src="docs/assets/yt-duo-logo.svg" width="340" alt="YT-Duo">
+  <img src="docs/assets/yt-duo-logo.svg" width="392" alt="YT-Duo">
 </p>
 <p align="center">Download YouTube videos in the best available quality.</p>
 
-A desktop app and command-line tool for downloading **videos or music**, powered by yt-dlp and FFmpeg.
+<p align="center">
+  <a href="https://github.com/4Raisan/YT-Duo/actions/workflows/checks.yml"><img src="https://github.com/4Raisan/YT-Duo/actions/workflows/checks.yml/badge.svg?branch=main" alt="YT-Duo offline checks"></a>
+</p>
+
+<p align="center">A desktop app and command-line tool for downloading <strong>videos or music</strong>, powered by yt-dlp and FFmpeg.<br><a href="https://github.com/4Raisan/YT-Duo/releases/latest">Download YT-Duo</a></p>
 
 <p align="center">
   <img src="docs/assets/app-preview.png" width="720" alt="YT-Duo desktop preview showing video quality selection and a completed download">
