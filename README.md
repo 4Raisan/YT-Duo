@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/yt-duo-logo.svg" width="392" alt="YT-Duo">
+  <picture>
+    <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/yt-duo-logo-static.svg">
+    <img src="docs/assets/yt-duo-logo.svg" width="392" alt="YT-Duo">
+  </picture>
 </p>
 <p align="center">Download YouTube videos in the best available quality.</p>
 
