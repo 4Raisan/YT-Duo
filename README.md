@@ -18,19 +18,19 @@
 
 ## Download
 
-**v4.7.2 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.7.2)**
+**v4.7.3 · [All downloads](https://github.com/4Raisan/YT-Duo/releases/tag/v4.7.3)**
 
 | Platform | Download |
 | --- | --- |
-| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-Setup.exe) |
-| Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-Linux.sh) |
-| macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-macOS.command) |
+| Windows 10/11 x64 | [Portable EXE](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.3/YT-Duo-4.7.3-Portable.exe) · [Setup](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.3/YT-Duo-4.7.3-Setup.exe) |
+| Linux | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.3/YT-Duo-4.7.3-Linux.sh) |
+| macOS | [Launcher](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.3/YT-Duo-4.7.3-macOS.command) |
 
 **Windows:** Python, Tk, yt-dlp, YouTube JS helpers, FFmpeg, FFprobe, and Deno are included—no separate dependency installation.
 
 **Linux/macOS and source installs:** follow the [dependency setup guide](Releases/README.md#dependencies).
 
-Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.2/YT-Duo-4.7.2-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
+Windows builds are unsigned. Unix downloads are Python launchers, not native app bundles; native macOS GUI execution is unverified. See the [download guide](Releases/README.md) for setup, [source ZIP](https://github.com/4Raisan/YT-Duo/releases/download/v4.7.3/YT-Duo-4.7.3-source.zip), and [checksums](https://github.com/4Raisan/YT-Duo/releases/latest/download/SHA256SUMS.txt).
 
 For newer downloads, see the [latest release](https://github.com/4Raisan/YT-Duo/releases/latest).
 
@@ -44,7 +44,7 @@ Use **Browse** to change the save folder. Setup defaults to your Windows Downloa
 
 Also included: queues, pause/resume/stop, duplicate-download prompts, eight themes, adjustable text size, and update checks.
 
-**New in v4.7.2:** enable **Split** and enter From / To times to save part of a video or music track. Only the selected interval plus a short decoding overlap is fetched. See [split downloads](docs/USAGE.md#split-downloads) for supported streams and limits.
+**Split downloads:** enable **Split** and enter From / To times to save part of a video or music track. Only the selected interval plus a short decoding overlap is fetched. See [split downloads](docs/USAGE.md#split-downloads) for supported streams and limits.
 
 The app checks for updates on startup. A green neon **Update to latest** button appears only when a newer version is found; click it to download, verify, and restart. Finish active downloads first. Builds older than 4.6.4 need one manual upgrade. **Star on GitHub** opens the repository.
 
@@ -69,4 +69,4 @@ Verify dependencies with `python -m ytduo --check-dependencies`. For command-lin
 
 [MIT](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components. [Report a problem](https://github.com/4Raisan/YT-Duo/issues).
 
-Split controls in v4.7.2 let you adjust time segments with arrows or the mouse wheel, keep a later end time when the start changes, and reuse a link for multiple clips.
+Split controls let you adjust time segments with arrows or the mouse wheel, keep a later end time when the start changes, and reuse a link for multiple clips.
