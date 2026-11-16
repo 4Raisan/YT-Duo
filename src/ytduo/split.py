@@ -417,7 +417,7 @@ def transfer(reader, planned, path):
 
 
 def cap_mp4_duration(path, seconds):
-    """Cap FFmpeg's single-entry edit lists, retaining decoder dependency frames.
+    """Cap FFmpeg's media edits, retaining decoder dependency frames.
 
     Reordered frames may be stored beyond the desired endpoint. MP4 edit lists
     control their presentation without changing the encoded samples. Only the
@@ -460,6 +460,7 @@ def cap_mp4_duration(path, seconds):
                     if version not in (0, 1):
                         raise SplitError("Unsupported local MP4 timing version.")
                     layout = ">Q" if version else ">I"
+                    delay = 0
                     if kind == b"mvhd":
                         at = body + (24 if version else 16)
                         scale = struct.unpack_from(">I", data, at - 4)[0]
@@ -467,14 +468,31 @@ def cap_mp4_duration(path, seconds):
                         at = body + (28 if version else 20)
                         tracks += 1
                     else:
-                        if struct.unpack_from(">I", data, body + 4)[0] != 1:
-                            raise SplitError("Complex MP4 edit lists are unsupported.")
+                        count = struct.unpack_from(">I", data, body + 4)[0]
+                        entry = ">Qqhh" if version else ">Iihh"
+                        entry_size = struct.calcsize(entry)
                         at = body + 8
+                        if count not in (1, 2):
+                            raise SplitError("Complex MP4 edit lists are unsupported.")
+                        if at + count * entry_size != pos + length:
+                            raise SplitError("Invalid local MP4 timing metadata.")
+                        if count == 2:
+                            # FFmpeg can prepend an empty edit for a positive start offset.
+                            delay, media_time, rate, fraction = struct.unpack_from(entry, data, at)
+                            if (media_time, rate, fraction) != (-1, 1, 0):
+                                raise SplitError("Complex MP4 edit lists are unsupported.")
+                            at += entry_size
+                        _, media_time, rate, fraction = struct.unpack_from(entry, data, at)
+                        if media_time < 0 or (rate, fraction) != (1, 0):
+                            raise SplitError("Complex MP4 edit lists are unsupported.")
                         edits += 1
                     if not scale:
                         raise SplitError("Missing local MP4 timescale.")
+                    limit = round(seconds * scale) - delay
+                    if kind == b"elst" and limit <= 0:
+                        raise SplitError("MP4 track starts after the requested clip ends.")
                     old = struct.unpack_from(layout, data, at)[0]
-                    struct.pack_into(layout, data, at, min(old, round(seconds * scale)))
+                    struct.pack_into(layout, data, at, min(old, limit))
                 if kind in (b"trak", b"edts"):
                     walk(body, pos + length)
                 pos += length

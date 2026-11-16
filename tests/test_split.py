@@ -4,6 +4,7 @@ import os
 import struct
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ytduo import engine, split
@@ -124,6 +125,40 @@ class Indexes(unittest.TestCase):
             split.cap_mp4_duration(path, 6)  # Never extend absent source samples.
             with open(path, "rb") as stream:
                 self.assertEqual(stream.read(), before)
+
+    def test_edit_list_duration_cap_preserves_empty_leading_edit(self):
+        def box(kind, payload):
+            return struct.pack(">I4s", len(payload) + 8, kind) + payload
+
+        def movie(version, duration, leading_time=-1):
+            mvhd, tkhd = bytearray(24), bytearray(28)
+            struct.pack_into(">II", mvhd, 12, 1000, duration + 14)
+            struct.pack_into(">I", tkhd, 20, duration + 14)
+            entry = ">Qqhh" if version else ">Iihh"
+            elst = struct.pack(">II", version << 24, 2)
+            elst += struct.pack(entry, 14, leading_time, 1, 0)
+            elst += struct.pack(entry, duration, 312, 1, 0)
+            return box(b"moov", box(b"mvhd", mvhd)
+                       + box(b"trak", box(b"tkhd", tkhd) + box(b"edts", box(b"elst", elst))))
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "clip.m4a"
+            encoded = box(b"mdat", b"original-encoded-audio-packets")
+            for version in (0, 1):
+                with self.subTest(version=version):
+                    path.write_bytes(movie(version, 24020) + encoded)
+                    split.cap_mp4_duration(path, 24)
+                    self.assertEqual(path.read_bytes(), movie(version, 23986) + encoded)
+                    split.cap_mp4_duration(path, 25)
+                    self.assertEqual(path.read_bytes(), movie(version, 23986) + encoded)
+                    with self.assertRaisesRegex(split.SplitError, "starts after"):
+                        split.cap_mp4_duration(path, .01)
+                    self.assertEqual(path.read_bytes(), movie(version, 23986) + encoded)
+                    invalid = movie(version, 24020, leading_time=0) + encoded
+                    path.write_bytes(invalid)
+                    with self.assertRaisesRegex(split.SplitError, "Complex MP4 edit lists"):
+                        split.cap_mp4_duration(path, 24)
+                    self.assertEqual(path.read_bytes(), invalid)
 
     def test_sidx_versions_and_bounded_selection(self):
         for version in (0, 1):
